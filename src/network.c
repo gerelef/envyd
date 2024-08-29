@@ -10,6 +10,7 @@ ssize_t sso_read(const int socket_fd, char *buffer /*out*/, const size_t size);
 void assign_task(const int client_fd, const char *action, const json_object *jobj);
 
 // handlers
+void nvmlDeviceGetTemperature_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceGetTemperatureThreshold_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceGetMemoryInfo_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceGetDetailsAll_handler(const int client_fd, const json_object *jobj);
@@ -52,7 +53,7 @@ void process(const int client_fd, const struct timeval *tv_timeout) {
         return;
     }
 
-    PRINTLN("Received %zd bytes: %s\n", bytes_received, so_buffer);
+    PRINTLN_SO("Received %zd bytes: %s\n", bytes_received, so_buffer);
     enum json_tokener_error error;
     json_object *jobj = json_tokener_parse_verbose(so_buffer, &error);
     if (jobj == NULL) {
@@ -89,8 +90,8 @@ void assign_task(const int client_fd, const char *action, const json_object *job
     PRINTLN_SO("Got action '%s', length %lu", action, strlen(action));
     if (strcmp(action, "nvmlDeviceGetTemperature") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g92d1c5182a14dd4be7090e3c1480b121
-        // TODO impl
-        PRINTLN_SO("nvmlDeviceGetTemperature");
+        PRINTLN_SO("nvmlDeviceGetTemperature_handler");
+        nvmlDeviceGetTemperature_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetTemperatureThreshold") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g271ba78911494f33fc079b204a929405
         // Note: This API is no longer the preferred interface for retrieving the following temperature thresholds on Ada and later architectures: NVML_TEMPERATURE_THRESHOLD_SHUTDOWN, NVML_TEMPERATURE_THRESHOLD_SLOWDOWN, NVML_TEMPERATURE_THRESHOLD_MEM_MAX and NVML_TEMPERATURE_THRESHOLD_GPU_MAX.
@@ -114,6 +115,44 @@ void assign_task(const int client_fd, const char *action, const json_object *job
         PRINTLN_SO("Got erroneous action %s, couldn't resolve provided action to any valid action!", action);
         RESPOND(client_fd, NULL, UNDEFINED_INVALID_ACTION, "Couldn't resolve provided action to any valid envyd or NVML action.");
     }
+}
+
+void nvmlDeviceGetTemperature_handler(const int client_fd, const json_object *jobj) {
+    json_object *uuid_field = json_object_object_get(jobj, "uuid");
+    if (uuid_field == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        return;
+    }
+
+    const char *uuid = json_object_get_string(uuid_field);
+    if (uuid == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
+        return;
+    }
+
+    nvmlDevice_t device;
+    gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
+    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
+        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
+        return;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Couldn't get device handle w/ uuid %s", uuid);
+
+    unsigned int temperature;
+    gl_nvml_result = nvmlDeviceGetTemperature(device, NVML_TEMPERATURE_GPU, &temperature);
+    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_UNKNOWN) {
+        PRINTLN_SO("Couldn't get temperature!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't get temperature");
+        return;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Couldn't get GPU temperature for uuid %s sensor %d!", uuid, NVML_TEMPERATURE_GPU);
+
+    char buff[64];
+    snprintf(buff, 64, "{ \"temperature\": %d}", temperature);
+    RESPOND(client_fd, buff, map_nvmlReturn_t_to_string(gl_nvml_result), "Successfully retrieved temperature!");
 }
 
 void nvmlDeviceGetTemperatureThreshold_handler(const int client_fd, const json_object *jobj) {
@@ -236,6 +275,66 @@ void nvmlDeviceGetTemperatureThreshold_handler(const int client_fd, const json_o
         gps_curr
     );
     RESPOND(client_fd, buffer, map_nvmlReturn_t_to_string(lo_nvml_result), lo_nvml_result == NVML_ERROR_NOT_SUPPORTED ? "Some values might be garbage denoted by UINT_MAX" : NULL);
+}
+
+void nvmlDeviceGetThermalSettings_handler(const int client_fd, const json_object *jobj) {
+    json_object *uuid_field = json_object_object_get(jobj, "uuid");
+    if (uuid_field == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        return;
+    }
+
+    const char *uuid = json_object_get_string(uuid_field);
+    if (uuid == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
+        return;
+    }
+
+    nvmlDevice_t device;
+    gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
+    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
+        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
+        return;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Couldn't get device handle w/ uuid %s", uuid);
+
+    nvmlGpuThermalSettings_t gpu_thermal_settings;
+    gl_nvml_result = nvmlDeviceGetThermalSettings(device, NVML_TEMPERATURE_GPU, &gpu_thermal_settings);
+    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_UNKNOWN) {
+        PRINTLN_SO("Couldn't match sensor!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't match sensor");
+        return;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Couldn't get GPU thermal settings for uuid %s sensor %d!", uuid, NVML_TEMPERATURE_GPU);
+
+    char buff[2048];
+    snprintf(
+        buff, 2048,
+        "{"
+            "\"count\": %d, "
+            // this might expand in the future; the NVML_TEMPERATURE_COUNT is 3, but there is only 1 enum val here
+            "\"sensors\": ["
+                "{"
+                    "\"controller\": \"%s\","
+                    "\"target\": \"%s\","
+                    "\"currentTemp\": %d,"
+                    "\"defaultMaxTemp\": %d,"
+                    "\"defaultMinTemp\": %d"
+                "}"
+            "]"
+        "}",
+        gpu_thermal_settings.count,
+        map_nvmlThermalController_t_to_string(gpu_thermal_settings.sensor[NVML_TEMPERATURE_GPU].controller),
+        map_nvmlThermalTarget_t_to_string(gpu_thermal_settings.sensor[NVML_TEMPERATURE_GPU].target),
+        gpu_thermal_settings.sensor[NVML_TEMPERATURE_GPU].currentTemp,
+        gpu_thermal_settings.sensor[NVML_TEMPERATURE_GPU].defaultMaxTemp,
+        gpu_thermal_settings.sensor[NVML_TEMPERATURE_GPU].defaultMinTemp)
+    ;
+
+    RESPOND(client_fd, buff, map_nvmlReturn_t_to_string(gl_nvml_result), "Successfully retrieved data!");
 }
 
 void nvmlDeviceGetMemoryInfo_handler(const int client_fd, const json_object *jobj) {
@@ -383,102 +482,6 @@ void nvmlDeviceGetDetailsAll_handler(const int client_fd, const json_object *job
     const char* desc = failure_count > 0 ? "Failed to get details for some GPUs." : "Successfully successfully generated device list.";
     RESPOND(client_fd, buffer, map_nvmlReturn_t_to_string(status), desc);
     free(buffer);
-}
-
-void nvmlDeviceGetThermalSettings_handler(const int client_fd, const json_object *jobj) {
-    json_object *uuid_field = json_object_object_get(jobj, "uuid");
-    if (uuid_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
-        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
-        return;
-    }
-
-    const char *uuid = json_object_get_string(uuid_field);
-    if (uuid == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
-        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
-        return;
-    }
-
-    const json_object *sensorIndex_field = json_object_object_get(jobj, "sensorIndex");
-    if (sensorIndex_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'sensorIndex' field does not exist in $ (root) jobj");
-        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'sensorIndex' field does not exist in $ (root) jobj");
-        return;
-    }
-
-    const uint32_t sensor_index = json_object_get_int(sensorIndex_field);
-    if (errno == EINVAL && sensor_index == 0) {
-        PRINTLN_SO("Invalid JSON schema: 'sensorIndex' field does have a valid value");
-        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'sensorIndex' field does have a valid value");
-        return;
-    }
-
-    nvmlDevice_t device;
-    gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
-    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve UUID to any device!");
-        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
-        return;
-    }
-    if (FATAL(gl_nvml_result)) WTF("Couldn't get device handle w/ uuid %s", uuid);
-
-    nvmlGpuThermalSettings_t gpu_thermal_settings;
-    gl_nvml_result = nvmlDeviceGetThermalSettings(device, sensor_index, &gpu_thermal_settings);
-    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_UNKNOWN) {
-        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't match sensor");
-        return;
-    }
-    if (FATAL(gl_nvml_result)) WTF("Couldn't get GPU thermal settings for uuid %s sensor %d!", uuid, sensor_index);
-
-    char buff[2048];
-    snprintf(
-        buff, 2048,
-        "{"
-            "\"count\": %d, "
-            "\"sensors\": ["
-                "{"
-                    "\"controller\": \"%s\","
-                    "\"target\": \"%s\","
-                    "\"currentTemp\": %d,"
-                    "\"defaultMaxTemp\": %d,"
-                    "\"defaultMinTemp\": %d"
-                "},"
-                "{"
-                    "\"controller\": \"%s\","
-                    "\"target\": \"%s\","
-                    "\"currentTemp\": %d,"
-                    "\"defaultMaxTemp\": %d,"
-                    "\"defaultMinTemp\": %d"
-                "},"
-                "{"
-                    "\"controller\": \"%s\","
-                    "\"target\": \"%s\","
-                    "\"currentTemp\": %d,"
-                    "\"defaultMaxTemp\": %d,"
-                    "\"defaultMinTemp\": %d"
-                "}"
-            "]"
-        "}",
-        gpu_thermal_settings.count,
-        map_nvmlThermalController_t_to_string(gpu_thermal_settings.sensor[0].controller),
-        map_nvmlThermalTarget_t_to_string(gpu_thermal_settings.sensor[0].target),
-        gpu_thermal_settings.sensor[0].currentTemp,
-        gpu_thermal_settings.sensor[0].defaultMaxTemp,
-        gpu_thermal_settings.sensor[0].defaultMinTemp,
-        map_nvmlThermalController_t_to_string(gpu_thermal_settings.sensor[1].controller),
-        map_nvmlThermalTarget_t_to_string(gpu_thermal_settings.sensor[1].target),
-        gpu_thermal_settings.sensor[1].currentTemp,
-        gpu_thermal_settings.sensor[1].defaultMaxTemp,
-        gpu_thermal_settings.sensor[1].defaultMinTemp,
-        map_nvmlThermalController_t_to_string(gpu_thermal_settings.sensor[2].controller),
-        map_nvmlThermalTarget_t_to_string(gpu_thermal_settings.sensor[2].target),
-        gpu_thermal_settings.sensor[2].currentTemp,
-        gpu_thermal_settings.sensor[2].defaultMaxTemp,
-        gpu_thermal_settings.sensor[2].defaultMinTemp)
-    ;
-
-    RESPOND(client_fd, buff, map_nvmlReturn_t_to_string(gl_nvml_result), "Successfully retrieved data!");
 }
 
 // ----------------------------- NETWORK STUFF -----------------------------
