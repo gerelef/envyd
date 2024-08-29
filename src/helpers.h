@@ -1,21 +1,22 @@
 #ifndef HELPERS_H
 #define HELPERS_H
 
-#include <stdlib.h>
-#include <stdio.h>
+#include <assert.h>
 #include <nvml.h>
 
 extern nvmlReturn_t gl_nvml_result;  // global; use for panics
 
-#define PANIC(...) do { \
+#define WTF(...) do { \
     PRINTLN(__VA_ARGS__); \
-    PRINTLN("\033[31;1m[%s:%d][PANIC]\033[0m Fatal error %s", __FILE_NAME__, __LINE__, map_nvmlReturn_t_to_string(gl_nvml_result)); \
+    do { printf("\033[31m[%s:%d][%s][PANIC][FATAL ERROR: %s]\033[0m ", __FILE_NAME__, __LINE__, __PRETTY_FUNCTION__, map_nvmlReturn_t_to_string(gl_nvml_result)); printf(__VA_ARGS__); printf("\n"); } while (0); \
     nvmlShutdown(); /* might fail but who gives a shit when we panic lmao */ \
     exit(gl_nvml_result); \
     } while (0)
 
-#define PRINTLN_SO(...) do { printf("\033[36;1m[%s:%d][SOCK]\033[0m ", __FILE_NAME__, __LINE__); printf(__VA_ARGS__); printf("\n"); } while (0)
-#define PRINTLN(...) do { printf("\033[34;1m[%s:%d][INFO]\033[0m ", __FILE_NAME__, __LINE__); printf(__VA_ARGS__); printf("\n"); } while (0)
+#define MEMSET_BUFF(buff, len) do { assert(so_buffer != NULL); memset(so_buffer, 0, len); } while(0)
+
+#define PRINTLN_SO(...) do { printf("\033[36m[%s:%d][%s][SOCK]\033[0m ", __FILE_NAME__, __LINE__, __PRETTY_FUNCTION__); printf(__VA_ARGS__); printf("\n"); } while (0)
+#define PRINTLN(...) do { printf("\033[34m[%s:%d][%s][INFO]\033[0m ", __FILE_NAME__, __LINE__, __PRETTY_FUNCTION__); printf(__VA_ARGS__); printf("\n"); } while (0)
 
 #define OK(nvmlReturn) nvmlReturn == NVML_SUCCESS
 #define ERROR(nvmlReturn) nvmlReturn == NVML_ERROR_INVALID_ARGUMENT \
@@ -114,11 +115,77 @@ static char *map_nvmlReturn_t_to_string(const nvmlReturn_t nvmlReturn) {
             return "NVML_ERROR_GPU_NOT_FOUND";
         case NVML_ERROR_INVALID_STATE: // error
             return "NVML_ERROR_INVALID_STATE";
-        case NVML_ERROR_UNKNOWN:
-            return "NVML_ERROR_UNKNOWN";
         default:
-            PANIC("WTF UNKNOWN NVMLRETURN %d", nvmlReturn);
+            return "NVML_ERROR_UNKNOWN";
     }
 }
 
-#endif //HELPERS_H
+static char* map_nvmlThermalController_t_to_string(const nvmlThermalController_t nvml_thermal_controller) {
+    switch (nvml_thermal_controller) {
+        case NVML_THERMAL_CONTROLLER_NONE:
+            return "NVML_THERMAL_CONTROLLER_NONE";
+        case NVML_THERMAL_CONTROLLER_GPU_INTERNAL:
+            return "NVML_THERMAL_CONTROLLER_GPU_INTERNAL";
+        case NVML_THERMAL_CONTROLLER_ADM1032:
+            return "NVML_THERMAL_CONTROLLER_ADM1032";
+        case NVML_THERMAL_CONTROLLER_ADT7461:
+            return "NVML_THERMAL_CONTROLLER_ADT7461";
+        case NVML_THERMAL_CONTROLLER_MAX6649:
+            return "NVML_THERMAL_CONTROLLER_MAX6649";
+        case NVML_THERMAL_CONTROLLER_MAX1617:
+            return "NVML_THERMAL_CONTROLLER_MAX1617";
+        case NVML_THERMAL_CONTROLLER_LM99:
+            return "NVML_THERMAL_CONTROLLER_LM99";
+        case NVML_THERMAL_CONTROLLER_LM89:
+            return "NVML_THERMAL_CONTROLLER_LM89";
+        case NVML_THERMAL_CONTROLLER_LM64:
+            return "NVML_THERMAL_CONTROLLER_LM64";
+        case NVML_THERMAL_CONTROLLER_G781:
+            return "NVML_THERMAL_CONTROLLER_G781";
+        case NVML_THERMAL_CONTROLLER_ADT7473:
+            return "NVML_THERMAL_CONTROLLER_ADT7473";
+        case NVML_THERMAL_CONTROLLER_SBMAX6649:
+            return "NVML_THERMAL_CONTROLLER_SBMAX6649";
+        case NVML_THERMAL_CONTROLLER_VBIOSEVT:
+            return "NVML_THERMAL_CONTROLLER_VBIOSEVT";
+        case NVML_THERMAL_CONTROLLER_OS:
+            return "NVML_THERMAL_CONTROLLER_OS";
+        case NVML_THERMAL_CONTROLLER_NVSYSCON_CANOAS:
+            return "NVML_THERMAL_CONTROLLER_NVSYSCON_CANOAS";
+        case NVML_THERMAL_CONTROLLER_NVSYSCON_E551:
+            return "NVML_THERMAL_CONTROLLER_NVSYSCON_E551";
+        case NVML_THERMAL_CONTROLLER_MAX6649R:
+            return "NVML_THERMAL_CONTROLLER_MAX6649R";
+        case NVML_THERMAL_CONTROLLER_ADT7473S:
+            return "NVML_THERMAL_CONTROLLER_ADT7473S";
+        default:
+            return "NVML_THERMAL_CONTROLLER_UNKNOWN";
+    }
+}
+
+static char* map_nvmlThermalTarget_t_to_string(const nvmlThermalTarget_t nvml_thermal_target) {
+    switch (nvml_thermal_target) {
+        case NVML_THERMAL_TARGET_NONE:
+            return "NVML_THERMAL_TARGET_NONE";
+        case NVML_THERMAL_TARGET_GPU:
+            return "NVML_THERMAL_TARGET_GPU";
+        case NVML_THERMAL_TARGET_MEMORY:
+            return "NVML_THERMAL_TARGET_MEMORY";
+        case NVML_THERMAL_TARGET_POWER_SUPPLY:
+            return "NVML_THERMAL_TARGET_POWER_SUPPLY";
+        case NVML_THERMAL_TARGET_BOARD:
+            return "NVML_THERMAL_TARGET_BOARD";
+        case NVML_THERMAL_TARGET_VCD_BOARD:
+            return "NVML_THERMAL_TARGET_VCD_BOARD";
+        case NVML_THERMAL_TARGET_VCD_INLET:
+            return "NVML_THERMAL_TARGET_VCD_INLET";
+        case NVML_THERMAL_TARGET_VCD_OUTLET:
+            return "NVML_THERMAL_TARGET_VCD_OUTLET";
+        case NVML_THERMAL_TARGET_ALL:
+            return "NVML_THERMAL_TARGET_ALL";
+        default:
+            return "NVML_THERMAL_TARGET_UNKNOWN";
+    }
+}
+
+#endif
