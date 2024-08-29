@@ -101,7 +101,7 @@ void assign_task(const int client_fd, const char *action, const json_object *job
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1gf0c51f78525ea6fbc1a83bd75db098c7
         PRINTLN_SO("nvmlDeviceGetThermalSettings_handler");
         nvmlDeviceGetThermalSettings_handler(client_fd, jobj);
-    } else if (strcmp(action, "nvmlDeviceGetMemoryInfo_v2")){
+    } else if (strcmp(action, "nvmlDeviceGetMemoryInfo_v2") == 0){
         PRINTLN_SO("nvmlDeviceGetMemoryInfo_handler");
         nvmlDeviceGetMemoryInfo_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetDetailsAll") == 0) {
@@ -120,7 +120,7 @@ void nvmlDeviceGetMemoryInfo_handler(const int client_fd, const json_object *job
 }
 
 void nvmlDeviceGetDetailsAll_handler(const int client_fd, const json_object *jobj) {
-    // half a meg will literally handle even clusters, I'd hope lol (should fit about 400 devices, counting overhead)
+    // half a meg will literally handle even small clusters, I'd hope lol (should fit about 400 devices, counting overhead)
     char* buffer = calloc(sizeof(char), 524288);
     unsigned int device_count;
     gl_nvml_result = nvmlDeviceGetCount_v2(&device_count);
@@ -131,7 +131,7 @@ void nvmlDeviceGetDetailsAll_handler(const int client_fd, const json_object *job
     }
     if (FATAL(gl_nvml_result)) WTF("Catastrophic failure when grabbing device count! Is NVML instance up?");
 
-    sprintf(buffer, "{\"count\": %d, \"data\": [", device_count);
+    sprintf(buffer, "{\"count\": %d, \"devices\": [", device_count);
     int failure_count = 0;
     for (int i = 0; i < device_count; ++i) {
         nvmlDevice_t device;
@@ -183,13 +183,14 @@ void nvmlDeviceGetDetailsAll_handler(const int client_fd, const json_object *job
         char device_buff[512];
         sprintf(
             device_buff,
-            ",{"
+            "%s{"
                 "\"uuid\":" "\"%s\","
                 "\"name\":" "\"%s\","
                 "\"gsp_version\":" "\"%s\","
                 "\"gsp_mode\":" "%d,"
                 "\"gsp_default-mode\":" "%d"
             "}",
+            i > 0 ? "," : "",
             uuid,
             name,
             gsp_version,
@@ -198,13 +199,15 @@ void nvmlDeviceGetDetailsAll_handler(const int client_fd, const json_object *job
 
         strcat(buffer, device_buff);
     }
+
     // nvmlDeviceGetCount_v2
     // nvmlDeviceGetHandleByIndex_v2
     // nvmlDeviceGetUUID
     // nvmlDeviceGetGspFirmwareVersion
     // nvmlDeviceGetGspFirmwareMode
     const size_t len = strlen(buffer);  // close the array
-    buffer[len] = "]}";
+    buffer[len] = ']';
+    buffer[len + 1] = '}';
 
     const int status = failure_count > 0 ? NVML_ERROR_UNKNOWN : NVML_SUCCESS;
     const char* desc = failure_count > 0 ? "Failed to get details for some GPUs." : "Successfully successfully generated device list.";
