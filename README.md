@@ -3,6 +3,10 @@
 ## usage
 Wherever 'nvmlDevice_t device' appears on the parameters of a function in the NVIDIA documentation,
 substitute that parameter with `uuid`, which is the unique identifier for the specific GPU device.
+Some actions might have slightly different names; actions will not have a version prefix, for example,
+`nvmlDeviceGetMemoryInfo_v2` is a call to `"action": "nvmlDeviceGetMemoryInfo"`. The version is **dropped**.
+This is done to ensure compatibility, in every case except the entire namespace drop from NVIDIA.
+This also helps reduce complexity in client code! `envyd` will call the version that is best for your GPU.
 
 When a parameter to an API is invalid, a detailed text will be provided.
 
@@ -49,11 +53,22 @@ Note:
 ## cookbook
 Test actions via `netcat`, `jq` required for formatting purposes:
 ```bash
-> echo '{"action": "hello"}' | jq . | nc -NU '/tmp/envyd.socket' | jq .
+> echo '{"action": "nvmlDeviceGetDetailsAll"}' | jq . | nc -NU '/tmp/envyd.socket' | jq .
 {
-  "data": null,
-  "status": "UNDEFINED_INVALID_ACTION",
-  "description": "Couldn't resolve provided action to any valid envyd or NVML action."
+  "data": {
+    "count": 1,
+    "devices": [
+      {
+        "uuid": "GPU-06358cc0-eaaa-36de-0ec6-02c0be62ddef",
+        "name": "NVIDIA GeForce RTX 2070 SUPER",
+        "gsp_version": "560.35.03",
+        "gsp_mode": 1,
+        "gsp_default-mode": 1
+      }
+    ]
+  },
+  "status": "NVML_SUCCESS",
+  "description": "Successfully successfully generated device list."
 }
 ```
 

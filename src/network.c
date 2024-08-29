@@ -101,7 +101,7 @@ void assign_task(const int client_fd, const char *action, const json_object *job
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1gf0c51f78525ea6fbc1a83bd75db098c7
         PRINTLN_SO("nvmlDeviceGetThermalSettings_handler");
         nvmlDeviceGetThermalSettings_handler(client_fd, jobj);
-    } else if (strcmp(action, "nvmlDeviceGetMemoryInfo_v2") == 0){
+    } else if (strcmp(action, "nvmlDeviceGetMemoryInfo") == 0){
         PRINTLN_SO("nvmlDeviceGetMemoryInfo_handler");
         nvmlDeviceGetMemoryInfo_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetDetailsAll") == 0) {
@@ -115,8 +115,54 @@ void assign_task(const int client_fd, const char *action, const json_object *job
 }
 
 void nvmlDeviceGetMemoryInfo_handler(const int client_fd, const json_object *jobj) {
-    // nvmlDeviceGetMemoryInfo_v2
-    // TODO impl
+    json_object *uuid_field = json_object_object_get(jobj, "uuid");
+    if (uuid_field == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        return;
+    }
+
+    const char *uuid = json_object_get_string(uuid_field);
+    if (uuid == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
+        return;
+    }
+
+    nvmlDevice_t device;
+    gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
+    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
+        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
+        return;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Couldn't get device handle w/ uuid %s", uuid);
+
+    nvmlMemory_v2_t nvml_memory;
+    nvml_memory.version = (unsigned int)(sizeof(nvmlMemory_v2_t) | 2 << 24U);
+    gl_nvml_result = nvmlDeviceGetMemoryInfo_v2(device, &nvml_memory);
+    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
+        PRINTLN_SO("Couldn't resolve memory info to device!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve memory info to device!");
+        return;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Catastrophic failure when getting memory info for uuid %s", uuid);
+
+    char buffer[256];
+    sprintf(
+        buffer,
+        "{"
+            "\"total\": %llu,"
+            "\"free\": %llu,"
+            "\"used\": %llu,"
+            "\"reserved\": %llu"
+        "}",
+        nvml_memory.total,
+        nvml_memory.free,
+        nvml_memory.used,
+        nvml_memory.reserved
+    );
+    RESPOND(client_fd, buffer, map_nvmlReturn_t_to_string(gl_nvml_result), NULL);
 }
 
 void nvmlDeviceGetDetailsAll_handler(const int client_fd, const json_object *jobj) {
@@ -345,76 +391,3 @@ ssize_t sso_read(const int socket_fd, char *buffer /*out*/, const size_t size) {
 
     return total_bytes;
 }
-
-// int main() {
-//     // OUT
-//     cJSON* root = cJSON_CreateObject();
-//     cJSON_AddStringToObject(root, "message", "Hello, World!");
-//
-//     char *out = cJSON_Print(root);
-//     free(out);
-//     cJSON_Delete(root);
-//
-//     // IN
-//     char buffer[1024];
-//     // write to buffer ...
-//     cJSON* read_root = cJSON_Parse(buffer);
-//     const char *message = cJSON_GetStringValue(cJSON_GetObjectItem(read_root, "message"));
-//     printf("Read message: %s\n", message);
-//     cJSON_Delete(read_root);
-// }
-
-// gl_nvml_result = nvmlInit_v2();
-// if (gl_nvml_result != NVML_SUCCESS) PANIC("Failed to initialize NVML");
-//
-// unsigned int device_count = -1;
-// gl_nvml_result = nvmlDeviceGetCount_v2(&device_count);
-// PRINTLN("Device count: %d", device_count);
-//
-// for (int deviceIndex = 0; deviceIndex < device_count; ++deviceIndex) {
-//     nvmlDevice_t device;
-//     gl_nvml_result = nvmlDeviceGetHandleByIndex_v2(deviceIndex, &device);
-//     if (gl_nvml_result != NVML_SUCCESS) PANIC("Failed to get device handle for index %d", deviceIndex);
-//
-//     char *uuid = malloc(64);
-//     gl_nvml_result = nvmlDeviceGetUUID(device, uuid, 64);
-//     if (gl_nvml_result != NVML_SUCCESS) PANIC("Failed to get uuid for device %d", deviceIndex);
-//
-//     char *name = malloc(128);
-//     gl_nvml_result = nvmlDeviceGetName(device, name, 128);
-//     if (gl_nvml_result != NVML_SUCCESS) PANIC("Failed to get name for device %d", deviceIndex);
-//
-//     char *gsp_version = malloc(64);
-//     gl_nvml_result = nvmlDeviceGetGspFirmwareVersion(device, gsp_version);
-//     if (gl_nvml_result != NVML_SUCCESS) PANIC("Failed to get gsp version for device %d", deviceIndex);
-//
-//     unsigned int is_enabled = -1;
-//     unsigned int is_supported_by_default = -1;
-//     gl_nvml_result = nvmlDeviceGetGspFirmwareMode(device, &is_enabled, &is_supported_by_default);
-//     if (gl_nvml_result != NVML_SUCCESS) PANIC("Failed to get gsp details for device %d", deviceIndex);
-//
-//     nvmlMemory_v2_t memory;
-//     // jesus fucking christ https://github.com/NVIDIA/nvidia-settings/issues/78#issuecomment-1012837988
-//     memory.version = (unsigned int)(sizeof(nvmlMemory_v2_t) | 2 << 24U);
-//     gl_nvml_result = nvmlDeviceGetMemoryInfo_v2(device, &memory);
-//     if (gl_nvml_result != NVML_SUCCESS) PANIC("Failed to get memory info for device %d", deviceIndex);
-//
-//     PRINTLN("------- DEVICE (%.2f%% full)-------", ((float) memory.used / (float) memory.total) * 100);
-//     PRINTLN("Named: %s", name);
-//     PRINTLN("UUID: %s", uuid);
-//     PRINTLN("GSP version: %s", gsp_version);
-//     PRINTLN("GSP supported by default: %u", is_supported_by_default);
-//     PRINTLN("GSP enabled: %u", is_enabled);
-//     PRINTLN("Total memory: %ld", (long) bytes_to_denominator(MEGABYTES, memory.total));
-//     PRINTLN("Free memory: %f", bytes_to_denominator(MEGABYTES, memory.free));
-//     PRINTLN("Used memory: %f", bytes_to_denominator(MEGABYTES, memory.used));
-//     PRINTLN("Reserved memory: %f", bytes_to_denominator(MEGABYTES, memory.reserved));
-//
-//     free(gsp_version);
-//     free(name);
-//     free(uuid);
-// }
-//
-// gl_nvml_result = nvmlShutdown();
-// if (gl_nvml_result != NVML_SUCCESS) PANIC("Failed to shutdown NVML");
-// return 0;

@@ -29,9 +29,11 @@ typedef struct networkResponse_st {
     networkError_st error;
 } networkResponse_st;
 
+#define STRINGIFY_NULLABLE(s) s == NULL ? "null" : s
+
 #define RESPOND(client_fd, datum, status, desc) do { \
     if (so_buffer == NULL) WTF("I/O buffer is null?!"); \
-    unsigned long long bytes_to_send = snprintf(so_buffer, SO_INPUT_BUFFER_SIZE, "{ \"data\": %s, \"status\": \"%s\", \"description\": \"%s\"}", datum == NULL ? "null" : datum, status == NULL ? "null" : status, desc == NULL ? "null" : desc); \
+    unsigned long long bytes_to_send = snprintf(so_buffer, SO_INPUT_BUFFER_SIZE, "{ \"data\": %s, \"status\": \"%s\", \"description\": \"%s\"}", STRINGIFY_NULLABLE(datum), STRINGIFY_NULLABLE(status), STRINGIFY_NULLABLE(desc)); \
     ssize_t written = write(client_fd, so_buffer, bytes_to_send); \
     PRINTLN_SO("Writing to client_fd %d: %s", client_fd, so_buffer); \
     if (written < 0) PRINTLN_SO("Couldn't write to fd %d", client_fd); \
