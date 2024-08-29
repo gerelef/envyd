@@ -10,6 +10,9 @@ ssize_t sso_read(const int socket_fd, char *buffer /*out*/, const size_t size);
 void assign_task(const int client_fd, const char *action, const json_object *jobj);
 
 // handlers
+// restrictions
+void nvmlDeviceGetAPIRestriction_handler(const int client_fd, const json_object *jobj);
+// thermals
 void nvmlDeviceGetTemperature_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceGetTemperatureThreshold_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceGetMemoryInfo_handler(const int client_fd, const json_object *jobj);
@@ -88,7 +91,11 @@ void process(const int client_fd, const struct timeval *tv_timeout) {
 void assign_task(const int client_fd, const char *action, const json_object *jobj) {
     assert(jobj != NULL); // sanity
     PRINTLN_SO("Got action '%s', length %lu", action, strlen(action));
-    if (strcmp(action, "nvmlDeviceGetTemperature") == 0) {
+    if (strcmp(action, "nvmlDeviceGetAPIRestriction") == 0) {
+        // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g49dfc28b9d0c68f487f9321becbcad3e
+        PRINTLN_SO("nvmlDeviceGetAPIRestriction_handler");
+        nvmlDeviceGetAPIRestriction_handler(client_fd, jobj);
+    } else if (strcmp(action, "nvmlDeviceGetTemperature") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g92d1c5182a14dd4be7090e3c1480b121
         PRINTLN_SO("nvmlDeviceGetTemperature_handler");
         nvmlDeviceGetTemperature_handler(client_fd, jobj);
@@ -116,6 +123,69 @@ void assign_task(const int client_fd, const char *action, const json_object *job
         RESPOND(client_fd, NULL, UNDEFINED_INVALID_ACTION, "Couldn't resolve provided action to any valid envyd or NVML action.");
     }
 }
+
+// ----------------------------- RESTRICTIONS -----------------------------
+
+void nvmlDeviceGetAPIRestriction_handler(const int client_fd, const json_object *jobj) {
+    json_object *uuid_field = json_object_object_get(jobj, "uuid");
+    if (uuid_field == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        return;
+    }
+
+    const char *uuid = json_object_get_string(uuid_field);
+    if (uuid == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
+        return;
+    }
+
+    json_object *type_field = json_object_object_get(jobj, "apiType");
+    if (type_field == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'apiType' field does not exist in $ (root) jobj");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'apiType' field does not exist in $ (root) jobj");
+        return;
+    }
+
+    const char *type = json_object_get_string(type_field);
+    if (type == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'apiType' field does have a valid value");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'apiType' field does have a valid value");
+        return;
+    }
+
+    const nvmlRestrictedAPI_t api_type = map_restricted_api_type_to_enum(type);
+    if (api_type == NVML_RESTRICTED_API_COUNT) {
+        PRINTLN_SO("Invalid JSON schema: 'apiType' field did not evaluate to anything within the nvmlRestrictedAPI_t enum");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'apiType' field did not evaluate to anything within the nvmlRestrictedAPI_t enum");
+        return;
+    }
+
+    nvmlDevice_t device;
+    gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
+    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
+        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
+        return;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Couldn't get device handle w/ uuid %s", uuid);
+
+    nvmlEnableState_t is_restricted;
+    gl_nvml_result = nvmlDeviceGetAPIRestriction(device, api_type, &is_restricted);
+    if (ERROR(gl_nvml_result)) {
+        PRINTLN_SO("Couldn't resolve API restriction!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve API restriction");
+        return;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Couldn't get API restriction w/ uuid %s and type %d", uuid, api_type);
+
+    char buff[64];
+    snprintf(buff, 64, "{ \"restricted\": %s}", is_restricted == NVML_FEATURE_ENABLED ? "true" : "false");
+    RESPOND(client_fd, buff, map_nvmlReturn_t_to_string(gl_nvml_result), "Successfully retrieved API restrictions!");
+}
+
+// ----------------------------- THERMALS  -----------------------------
 
 void nvmlDeviceGetTemperature_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");

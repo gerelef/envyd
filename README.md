@@ -8,6 +8,10 @@ Some actions might have slightly different names; actions will not have a versio
 This is done to ensure compatibility, in every case except the entire namespace drop from NVIDIA.
 This also helps reduce complexity in client code! `envyd` will call the version that is best for your GPU.
 
+Some NVIDIA parameters might also be ignored, for the aforementioned reasons. 
+For example, `nvmlDeviceGetThermalSettings` does not need the `sensorIndex`; 
+it'll just provide all sensor information that are present in the current library.
+
 When a parameter to an API is invalid, a detailed text will be provided.
 
 ### request template
