@@ -1,6 +1,7 @@
 #include "network.h"
 #include "helpers.h"
 #include <errno.h>
+#include <limits.h>
 
 extern nvmlReturn_t gl_nvml_result; // global; use for panics
 extern char *so_buffer; // global; use for socket io
@@ -9,6 +10,7 @@ ssize_t sso_read(const int socket_fd, char *buffer /*out*/, const size_t size);
 void assign_task(const int client_fd, const char *action, const json_object *jobj);
 
 // handlers
+void nvmlDeviceGetTemperatureThreshold_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceGetMemoryInfo_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceGetDetailsAll_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceGetThermalSettings_handler(const int client_fd, const json_object *jobj);
@@ -96,7 +98,7 @@ void assign_task(const int client_fd, const char *action, const json_object *job
         //  Ada and later architectures would be removed from this API in future releases.Please
         //  use nvmlDeviceGetFieldValues with NVML_FI_DEV_TEMPERATURE_* fields to retrieve temperature thresholds on these architectures
         PRINTLN_SO("nvmlDeviceGetTemperatureThreshold_handler");
-        // TODO impl
+        nvmlDeviceGetTemperatureThreshold_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetThermalSettings") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1gf0c51f78525ea6fbc1a83bd75db098c7
         PRINTLN_SO("nvmlDeviceGetThermalSettings_handler");
@@ -112,6 +114,128 @@ void assign_task(const int client_fd, const char *action, const json_object *job
         PRINTLN_SO("Got erroneous action %s, couldn't resolve provided action to any valid action!", action);
         RESPOND(client_fd, NULL, UNDEFINED_INVALID_ACTION, "Couldn't resolve provided action to any valid envyd or NVML action.");
     }
+}
+
+void nvmlDeviceGetTemperatureThreshold_handler(const int client_fd, const json_object *jobj) {
+    json_object *uuid_field = json_object_object_get(jobj, "uuid");
+    if (uuid_field == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        return;
+    }
+
+    const char *uuid = json_object_get_string(uuid_field);
+    if (uuid == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
+        return;
+    }
+
+    nvmlDevice_t device;
+    gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
+    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
+        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
+        return;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Couldn't get device handle w/ uuid %s", uuid);
+
+    unsigned int shutdown;
+    nvmlReturn_t lo_nvml_result = gl_nvml_result;
+    gl_nvml_result = nvmlDeviceGetTemperatureThreshold(device, NVML_TEMPERATURE_THRESHOLD_SHUTDOWN, &shutdown);
+    if (ERROR(gl_nvml_result)) {
+        PRINTLN_SO("Couldn't resolve temperature threshold info to device!");
+        gl_nvml_result == NVML_ERROR_NOT_SUPPORTED ? shutdown = UINT_MAX : 0; // noop
+        lo_nvml_result = gl_nvml_result;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Catastrophic failure when getting temperature threshold for uuid %s", uuid);
+
+    unsigned int slowdown;
+    gl_nvml_result = nvmlDeviceGetTemperatureThreshold(device, NVML_TEMPERATURE_THRESHOLD_SLOWDOWN, &slowdown);
+    if (ERROR(gl_nvml_result)) {
+        PRINTLN_SO("Couldn't resolve temperature threshold info to device!");
+        gl_nvml_result == NVML_ERROR_NOT_SUPPORTED ? slowdown = UINT_MAX : 0; // noop
+        lo_nvml_result = gl_nvml_result;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Catastrophic failure when getting temperature threshold for uuid %s", uuid);
+
+    unsigned int mem_max;
+    gl_nvml_result = nvmlDeviceGetTemperatureThreshold(device, NVML_TEMPERATURE_THRESHOLD_MEM_MAX, &mem_max);
+    if (ERROR(gl_nvml_result)) {
+        PRINTLN_SO("Couldn't resolve temperature threshold info to device!");
+        gl_nvml_result == NVML_ERROR_NOT_SUPPORTED ? mem_max = UINT_MAX : 0; // noop
+        lo_nvml_result = gl_nvml_result;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Catastrophic failure when getting temperature threshold for uuid %s", uuid);
+
+    unsigned int gpu_max;
+    gl_nvml_result = nvmlDeviceGetTemperatureThreshold(device, NVML_TEMPERATURE_THRESHOLD_GPU_MAX, &gpu_max);
+    if (ERROR(gl_nvml_result)) {
+        PRINTLN_SO("Couldn't resolve temperature threshold info to device!");
+        gl_nvml_result == NVML_ERROR_NOT_SUPPORTED ? gpu_max = UINT_MAX : 0; // noop
+        lo_nvml_result = gl_nvml_result;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Catastrophic failure when getting temperature threshold for uuid %s", uuid);
+
+    unsigned int acoustic_min;
+    gl_nvml_result = nvmlDeviceGetTemperatureThreshold(device, NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_MIN, &acoustic_min);
+    if (ERROR(gl_nvml_result)) {
+        PRINTLN_SO("Couldn't resolve temperature threshold info to device!");
+        gl_nvml_result == NVML_ERROR_NOT_SUPPORTED ? acoustic_min = UINT_MAX : 0; // noop
+        lo_nvml_result = gl_nvml_result;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Catastrophic failure when getting temperature threshold for uuid %s", uuid);
+
+    unsigned int acoustic_curr;
+    gl_nvml_result = nvmlDeviceGetTemperatureThreshold(device, NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_CURR, &acoustic_curr);
+    if (ERROR(gl_nvml_result)) {
+        PRINTLN_SO("Couldn't resolve temperature threshold info to device!");
+        gl_nvml_result == NVML_ERROR_NOT_SUPPORTED ? acoustic_curr = UINT_MAX : 0;
+        lo_nvml_result = gl_nvml_result;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Catastrophic failure when getting temperature threshold for uuid %s", uuid);
+
+    unsigned int acoustic_max;
+    gl_nvml_result = nvmlDeviceGetTemperatureThreshold(device, NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_MAX, &acoustic_max);
+    if (ERROR(gl_nvml_result)) {
+        PRINTLN_SO("Couldn't resolve temperature threshold info to device!");
+        gl_nvml_result == NVML_ERROR_NOT_SUPPORTED ? acoustic_max = UINT_MAX : 0; // noop
+        lo_nvml_result = gl_nvml_result;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Catastrophic failure when getting temperature threshold for uuid %s", uuid);
+
+    unsigned int gps_curr;
+    gl_nvml_result = nvmlDeviceGetTemperatureThreshold(device, NVML_TEMPERATURE_THRESHOLD_GPS_CURR, &gps_curr);
+    if (ERROR(gl_nvml_result)) {
+        PRINTLN_SO("Couldn't resolve temperature threshold info to device!");
+        gl_nvml_result == NVML_ERROR_NOT_SUPPORTED ? gps_curr = UINT_MAX : 0; // noop
+        lo_nvml_result = gl_nvml_result;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Catastrophic failure when getting temperature threshold for uuid %s", uuid);
+
+    char buffer[256];
+    sprintf(
+        buffer,
+        "{"
+            "\"shutdown\": %u,"
+            "\"slowdown\": %u,"
+            "\"mem_max\": %u,"
+            "\"gpu_max\": %u,"
+            "\"acoustic_min\": %u,"
+            "\"acoustic_curr\": %u,"
+            "\"acoustic_max\": %u,"
+            "\"gps_curr\": %u"
+        "}",
+        shutdown,
+        slowdown,
+        mem_max,
+        gpu_max,
+        acoustic_min,
+        acoustic_curr,
+        acoustic_max,
+        gps_curr
+    );
+    RESPOND(client_fd, buffer, map_nvmlReturn_t_to_string(lo_nvml_result), lo_nvml_result == NVML_ERROR_NOT_SUPPORTED ? "Some values might be garbage denoted by UINT_MAX" : NULL);
 }
 
 void nvmlDeviceGetMemoryInfo_handler(const int client_fd, const json_object *jobj) {
