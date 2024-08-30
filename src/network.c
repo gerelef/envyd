@@ -226,7 +226,40 @@ void nvmlDeviceGetPowerManagementDefaultLimit_handler(const int client_fd, const
 }
 
 void nvmlDeviceGetPowerManagementLimit_handler(const int client_fd, const json_object *jobj) {
+    json_object *uuid_field = json_object_object_get(jobj, "uuid");
+    if (uuid_field == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        return;
+    }
 
+    const char *uuid = json_object_get_string(uuid_field);
+    if (uuid == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
+        return;
+    }
+
+    nvmlDevice_t device;
+    gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
+    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
+        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
+        return;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Couldn't get device handle w/ uuid %s", uuid);
+
+    unsigned int limit;
+    gl_nvml_result = nvmlDeviceGetPowerManagementLimit(device, &limit);
+    if (ERROR(gl_nvml_result)) {
+        PRINTLN_SO("Couldn't get limit!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't get limit!");
+        return;
+    }
+
+    char buffer[64];
+    sprintf(buffer, "{ \"limit\": %u }", limit);
+    RESPOND(client_fd, buffer, map_nvmlReturn_t_to_string(gl_nvml_result), NULL);
 }
 
 void nvmlDeviceGetPowerManagementMode_handler(const int client_fd, const json_object *jobj) {
