@@ -263,23 +263,57 @@ void nvmlDeviceGetPowerManagementLimit_handler(const int client_fd, const json_o
 }
 
 void nvmlDeviceGetPowerManagementMode_handler(const int client_fd, const json_object *jobj) {
-
+    // TODO impl
 }
 
 void nvmlDeviceGetPowerManagementLimitConstraints_handler(const int client_fd, const json_object *jobj) {
+    json_object *uuid_field = json_object_object_get(jobj, "uuid");
+    if (uuid_field == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        return;
+    }
 
+    const char *uuid = json_object_get_string(uuid_field);
+    if (uuid == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
+        return;
+    }
+
+    nvmlDevice_t device;
+    gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
+    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
+        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
+        return;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Couldn't get device handle w/ uuid %s", uuid);
+
+    unsigned int min_limit;
+    unsigned int max_limit;
+    gl_nvml_result = nvmlDeviceGetMinMaxFanSpeed(device, &min_limit, &max_limit);
+    if (ERROR(gl_nvml_result)) {
+        PRINTLN_SO("Couldn't get fan min/max limit!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't get fan min/max limit");
+        return;
+    }
+
+    char buffer[96];
+    sprintf(buffer, "{ \"minLimit\": %u, \"maxLimit\": %u }", min_limit, max_limit);
+    RESPOND(client_fd, buffer, map_nvmlReturn_t_to_string(gl_nvml_result), NULL);
 }
 
 void nvmlDeviceGetPowerUsage_handler(const int client_fd, const json_object *jobj) {
-
+    // TODO impl
 }
 
 void nvmlDeviceSetPowerManagementLimit_handler(const int client_fd, const json_object *jobj) {
-
+    // TODO impl
 }
 
 void nvmlDeviceSetTemperatureThreshold_handler(const int client_fd, const json_object *jobj) {
-
+    // TODO impl
 }
 
 // ----------------------------- FANS -----------------------------
