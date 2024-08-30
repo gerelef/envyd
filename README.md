@@ -1,7 +1,7 @@
 # envyd
 Daemon for `nvml`, to configure & monitor NVIDIA GPUs on the fly.
 
-This is a (typically `systemd`) daemon that will serve the `nvml` API conveniently over a (unix, by default) socket. \ 
+This is a (typically `systemd`) daemon that will serve the `nvml` API conveniently over a (unix, by default) socket. \
 The service was initially created to serve as a backend for software like [MSI Afterburner](https://www.msi.com/Landing/afterburner/graphics-cards), albeit in Linux. 
 
 * [usage](#usage)
