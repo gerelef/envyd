@@ -18,6 +18,7 @@ The service was initially created to serve as a backend for software like [MSI A
   + [`nvmlDeviceGetDetailsAll`](#-nvmldevicegetdetailsall-)
 * [special statuses (i.e. not belonging to nvmlReturn_t)](#special-statuses--ie-not-belonging-to-nvmlreturn-t-)
 * [contributing](#contributing)
+* [license](#license)
 
 ## usage
 Wherever 'nvmlDevice_t device' appears on the parameters of a function in the NVIDIA documentation,
@@ -206,3 +207,26 @@ To do so successfully & you want to help, this project needs the following four 
    If you have the time, kindly write some documentation that you think might be obscure to people w/o the necessary business knowledge!  
 4. Adoption. In an ideal world, there are no competing standards: there is only **one**, well-supported, community implementation, backed by a strict, well-written standard (in this case, the latest `nvml.h` serves this purpose). 
   To achieve this goal, if you're thinking about creating a tool that interacts with `nvml`, aka manages an NVIDIA GPU, consider using this tool instead of the alternatives!
+
+## license
+MIT License
+
+Copyright (c) 2024 gerelef
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
