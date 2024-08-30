@@ -10,6 +10,14 @@ ssize_t sso_read(const int socket_fd, char *buffer /*out*/, const size_t size);
 void assign_task(const int client_fd, const char *action, const json_object *jobj);
 
 // handlers
+// power
+void nvmlDeviceGetPowerManagementDefaultLimit_handler(const int client_fd, const json_object *jobj);
+void nvmlDeviceGetPowerManagementLimit_handler(const int client_fd, const json_object *jobj);
+void nvmlDeviceGetPowerManagementMode_handler(const int client_fd, const json_object *jobj);
+void nvmlDeviceGetPowerManagementLimitConstraints_handler(const int client_fd, const json_object *jobj);
+void nvmlDeviceGetPowerUsage_handler(const int client_fd, const json_object *jobj);
+void nvmlDeviceSetPowerManagementLimit_handler(const int client_fd, const json_object *jobj);
+void nvmlDeviceSetTemperatureThreshold_handler(const int client_fd, const json_object *jobj);
 // fans
 void nvmlDeviceGetNumFans_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceGetFanSpeed_handler(const int client_fd, const json_object *jobj);
@@ -97,7 +105,35 @@ void process(const int client_fd, const struct timeval *tv_timeout) {
 void assign_task(const int client_fd, const char *action, const json_object *jobj) {
     assert(jobj != NULL); // sanity
     PRINTLN_SO("Got action '%s', length %lu", action, strlen(action));
-    if (strcmp(action, "nvmlDeviceGetNumFans") == 0) {
+    if (strcmp(action, "nvmlDeviceGetPowerManagementDefaultLimit") == 0) {
+        // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1gd3ffb56cd39d079013dbfaba941eb31b
+        PRINTLN_SO("nvmlDeviceGetPowerManagementDefaultLimit_handler");
+        nvmlDeviceGetPowerManagementDefaultLimit_handler(client_fd, jobj);
+    } else if (strcmp(action, "nvmlDeviceGetPowerManagementLimit") == 0) {
+        // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1gf754f109beca3a4a8c8c1cd650d7d66c
+        PRINTLN_SO("nvmlDeviceGetPowerManagementLimit_handler");
+        nvmlDeviceGetPowerManagementLimit_handler(client_fd, jobj);
+    } else if (strcmp(action, "nvmlDeviceGetPowerManagementMode") == 0) {
+        // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g10365092adc37d7a17d261db8fe63fb6
+        PRINTLN_SO("nvmlDeviceGetPowerManagementMode_handler");
+        nvmlDeviceGetPowerManagementMode_handler(client_fd, jobj);
+    } else if (strcmp(action, "nvmlDeviceGetPowerManagementLimitConstraints") == 0) {
+        // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g350d841176116e366284df0e5e2fe2bf
+        PRINTLN_SO("nvmlDeviceGetPowerManagementLimitConstraints_handler");
+        nvmlDeviceGetPowerManagementLimitConstraints_handler(client_fd, jobj);
+    } else if (strcmp(action, "nvmlDeviceGetPowerUsage") == 0) {
+        // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g7ef7dff0ff14238d08a19ad7fb23fc87
+        PRINTLN_SO("nvmlDeviceGetPowerUsage_handler");
+        nvmlDeviceGetPowerUsage_handler(client_fd, jobj);
+    } else if (strcmp(action, "nvmlDeviceSetPowerManagementLimit") == 0) {
+        // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1gd10040f340986af6cda91e71629edb2b
+        PRINTLN_SO("nvmlDeviceSetPowerManagementLimit_handler");
+        nvmlDeviceSetPowerManagementLimit_handler(client_fd, jobj);
+    } else if (strcmp(action, "nvmlDeviceSetTemperatureThreshold") == 0) {
+        // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceCommands.html#group__nvmlDeviceCommands_1g0258912fc175951b8efe1440ca59e200
+        PRINTLN_SO("nvmlDeviceSetTemperatureThreshold_handler");
+        nvmlDeviceSetTemperatureThreshold_handler(client_fd, jobj);
+    } else if (strcmp(action, "nvmlDeviceGetNumFans") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g49dfc28b9d0c68f487f9321becbcad3e
         PRINTLN_SO("nvmlDeviceGetNumFans_handler");
         nvmlDeviceGetNumFans_handler(client_fd, jobj);
@@ -150,6 +186,69 @@ void assign_task(const int client_fd, const char *action, const json_object *job
     }
 }
 
+// ----------------------------- POWER -----------------------------
+
+void nvmlDeviceGetPowerManagementDefaultLimit_handler(const int client_fd, const json_object *jobj) {
+    json_object *uuid_field = json_object_object_get(jobj, "uuid");
+    if (uuid_field == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        return;
+    }
+
+    const char *uuid = json_object_get_string(uuid_field);
+    if (uuid == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
+        return;
+    }
+
+    nvmlDevice_t device;
+    gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
+    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
+        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
+        return;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Couldn't get device handle w/ uuid %s", uuid);
+
+    unsigned int default_limit;
+    gl_nvml_result = nvmlDeviceGetPowerManagementDefaultLimit(device, &default_limit);
+    if (ERROR(gl_nvml_result)) {
+        PRINTLN_SO("Couldn't get default limit!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't get default limit!");
+        return;
+    }
+
+    char buffer[64];
+    sprintf(buffer, "{ \"defaultLimit\": %u }", default_limit);
+    RESPOND(client_fd, buffer, map_nvmlReturn_t_to_string(gl_nvml_result), NULL);
+}
+
+void nvmlDeviceGetPowerManagementLimit_handler(const int client_fd, const json_object *jobj) {
+
+}
+
+void nvmlDeviceGetPowerManagementMode_handler(const int client_fd, const json_object *jobj) {
+
+}
+
+void nvmlDeviceGetPowerManagementLimitConstraints_handler(const int client_fd, const json_object *jobj) {
+
+}
+
+void nvmlDeviceGetPowerUsage_handler(const int client_fd, const json_object *jobj) {
+
+}
+
+void nvmlDeviceSetPowerManagementLimit_handler(const int client_fd, const json_object *jobj) {
+
+}
+
+void nvmlDeviceSetTemperatureThreshold_handler(const int client_fd, const json_object *jobj) {
+
+}
+
 // ----------------------------- FANS -----------------------------
 
 void nvmlDeviceGetNumFans_handler(const int client_fd, const json_object *jobj) {
@@ -184,7 +283,7 @@ void nvmlDeviceGetNumFans_handler(const int client_fd, const json_object *jobj) 
         return;
     }
 
-    char buffer[128];
+    char buffer[64];
     sprintf(buffer, "{ \"count\": %u }", num_fans);
     RESPOND(client_fd, buffer, map_nvmlReturn_t_to_string(gl_nvml_result), NULL);
 }
