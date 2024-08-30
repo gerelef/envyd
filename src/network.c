@@ -16,7 +16,6 @@ void nvmlDeviceGetPowerManagementLimit_handler(const int client_fd, const json_o
 void nvmlDeviceGetPowerManagementLimitConstraints_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceGetPowerUsage_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceSetPowerManagementLimit_handler(const int client_fd, const json_object *jobj);
-void nvmlDeviceSetTemperatureThreshold_handler(const int client_fd, const json_object *jobj);
 // fans
 void nvmlDeviceGetNumFans_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceGetFanSpeed_handler(const int client_fd, const json_object *jobj);
@@ -28,9 +27,11 @@ void nvmlDeviceGetAPIRestriction_handler(const int client_fd, const json_object 
 // thermals
 void nvmlDeviceGetTemperature_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceGetTemperatureThreshold_handler(const int client_fd, const json_object *jobj);
+void nvmlDeviceGetThermalSettings_handler(const int client_fd, const json_object *jobj);
+void nvmlDeviceSetTemperatureThreshold_handler(const int client_fd, const json_object *jobj);
+// generic
 void nvmlDeviceGetMemoryInfo_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceGetDetailsAll_handler(const int client_fd, const json_object *jobj);
-void nvmlDeviceGetThermalSettings_handler(const int client_fd, const json_object *jobj);
 
 int bind_socket_with_address(const char *address) {
     assert(address != NULL); // sanity
@@ -124,10 +125,6 @@ void assign_task(const int client_fd, const char *action, const json_object *job
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1gd10040f340986af6cda91e71629edb2b
         PRINTLN_SO("nvmlDeviceSetPowerManagementLimit_handler");
         nvmlDeviceSetPowerManagementLimit_handler(client_fd, jobj);
-    } else if (strcmp(action, "nvmlDeviceSetTemperatureThreshold") == 0) {
-        // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceCommands.html#group__nvmlDeviceCommands_1g0258912fc175951b8efe1440ca59e200
-        PRINTLN_SO("nvmlDeviceSetTemperatureThreshold_handler");
-        nvmlDeviceSetTemperatureThreshold_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetNumFans") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g49dfc28b9d0c68f487f9321becbcad3e
         PRINTLN_SO("nvmlDeviceGetNumFans_handler");
@@ -168,6 +165,10 @@ void assign_task(const int client_fd, const char *action, const json_object *job
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1gf0c51f78525ea6fbc1a83bd75db098c7
         PRINTLN_SO("nvmlDeviceGetThermalSettings_handler");
         nvmlDeviceGetThermalSettings_handler(client_fd, jobj);
+    } else if (strcmp(action, "nvmlDeviceSetTemperatureThreshold") == 0) {
+        // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceCommands.html#group__nvmlDeviceCommands_1g0258912fc175951b8efe1440ca59e200
+        PRINTLN_SO("nvmlDeviceSetTemperatureThreshold_handler");
+        nvmlDeviceSetTemperatureThreshold_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetMemoryInfo") == 0){
         PRINTLN_SO("nvmlDeviceGetMemoryInfo_handler");
         nvmlDeviceGetMemoryInfo_handler(client_fd, jobj);
@@ -411,10 +412,6 @@ void nvmlDeviceSetPowerManagementLimit_handler(const int client_fd, const json_o
     if (FATAL(gl_nvml_result)) WTF("Couldn't set power management limit w/ uuid %s and version %u, type %d, mw %u", uuid, power_value_s.version, power_value_s.powerScope, power_value_s.powerValueMw);
 
     RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), NULL);
-}
-
-void nvmlDeviceSetTemperatureThreshold_handler(const int client_fd, const json_object *jobj) {
-    // TODO impl
 }
 
 // ----------------------------- FANS -----------------------------
@@ -962,6 +959,12 @@ void nvmlDeviceGetThermalSettings_handler(const int client_fd, const json_object
 
     RESPOND(client_fd, buff, map_nvmlReturn_t_to_string(gl_nvml_result), "Successfully retrieved data!");
 }
+
+void nvmlDeviceSetTemperatureThreshold_handler(const int client_fd, const json_object *jobj) {
+    // TODO impl
+}
+
+// ----------------------------- GENERIC  -----------------------------
 
 void nvmlDeviceGetMemoryInfo_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
