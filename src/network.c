@@ -12,6 +12,7 @@ void assign_task(const int client_fd, const char *action, const json_object *job
 // handlers
 // fans
 void nvmlDeviceGetNumFans_handler(const int client_fd, const json_object *jobj);
+void nvmlDeviceGetFanSpeed_handler(const int client_fd, const json_object *jobj);
 // restrictions
 void nvmlDeviceSetAPIRestriction_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceGetAPIRestriction_handler(const int client_fd, const json_object *jobj);
@@ -98,6 +99,10 @@ void assign_task(const int client_fd, const char *action, const json_object *job
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g49dfc28b9d0c68f487f9321becbcad3e
         PRINTLN_SO("nvmlDeviceGetNumFans_handler");
         nvmlDeviceGetNumFans_handler(client_fd, jobj);
+    } else if (strcmp(action, "nvmlDeviceGetFanSpeed") == 0) {
+        // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g49dfc28b9d0c68f487f9321becbcad3e
+        PRINTLN_SO("nvmlDeviceGetFanSpeed_handler");
+        nvmlDeviceGetFanSpeed_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceSetAPIRestriction") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g49dfc28b9d0c68f487f9321becbcad3e
         PRINTLN_SO("nvmlDeviceSetAPIRestriction_handler");
@@ -136,6 +141,7 @@ void assign_task(const int client_fd, const char *action, const json_object *job
 }
 
 // ----------------------------- FANS -----------------------------
+
 void nvmlDeviceGetNumFans_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
@@ -151,8 +157,17 @@ void nvmlDeviceGetNumFans_handler(const int client_fd, const json_object *jobj) 
         return;
     }
 
+    nvmlDevice_t device;
+    gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
+    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
+        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
+        return;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Couldn't get device handle w/ uuid %s", uuid);
+
     unsigned int num_fans;
-    gl_nvml_result = nvmlDeviceGetCount_v2(&num_fans);
+    gl_nvml_result = nvmlDeviceGetNumFans(device, &num_fans);
     if (ERROR(gl_nvml_result)) {
         PRINTLN_SO("Couldn't get count of fans!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't get count of fans");
@@ -161,6 +176,63 @@ void nvmlDeviceGetNumFans_handler(const int client_fd, const json_object *jobj) 
 
     char buffer[128];
     sprintf(buffer, "{ \"count\": %u }", num_fans);
+    RESPOND(client_fd, buffer, map_nvmlReturn_t_to_string(gl_nvml_result), NULL);
+}
+
+void nvmlDeviceGetFanSpeed_handler(const int client_fd, const json_object *jobj) {
+    json_object *uuid_field = json_object_object_get(jobj, "uuid");
+    if (uuid_field == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        return;
+    }
+
+    const char *uuid = json_object_get_string(uuid_field);
+    if (uuid == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
+        return;
+    }
+
+    const json_object *fan_field = json_object_object_get(jobj, "fan");
+    if (fan_field == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'fan' field does not exist in $ (root) jobj");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'fan' field does not exist in $ (root) jobj");
+        return;
+    }
+
+    if (!json_object_is_type(fan_field, json_type_int)) {
+        PRINTLN_SO("Invalid JSON schema: 'fan' field is not an int");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'fan' field is not an int");
+        return;
+    }
+
+    const int fan_index = json_object_get_int(fan_field);
+    if (fan_index < 0) {
+        PRINTLN_SO("Invalid JSON schema: 'fan' field is not >= 0");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'fan' field is not >= 0");
+        return;
+    }
+
+    nvmlDevice_t device;
+    gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
+    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
+        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
+        return;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Couldn't get device handle w/ uuid %s", uuid);
+
+    unsigned int num_speed;
+    gl_nvml_result = nvmlDeviceGetFanSpeed_v2(device, fan_index, &num_speed);
+    if (ERROR(gl_nvml_result)) {
+        PRINTLN_SO("Couldn't get fan speed!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't get fan speed");
+        return;
+    }
+
+    char buffer[64];
+    sprintf(buffer, "{ \"speed\": %u }", num_speed);
     RESPOND(client_fd, buffer, map_nvmlReturn_t_to_string(gl_nvml_result), NULL);
 }
 
