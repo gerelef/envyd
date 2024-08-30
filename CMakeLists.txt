@@ -19,6 +19,8 @@ include_directories("/usr/include/json-c")
 
 find_package(JSON-C REQUIRED)
 
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wextra -Wpedantic")
+
 add_executable(envyd src/main.c
         src/helpers.h
         src/network.c

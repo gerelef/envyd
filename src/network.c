@@ -168,7 +168,7 @@ void assign_task(const int client_fd, const char *action, const json_object *job
     } else if (strcmp(action, "nvmlDeviceSetTemperatureThreshold") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceCommands.html#group__nvmlDeviceCommands_1g0258912fc175951b8efe1440ca59e200
         PRINTLN_SO("nvmlDeviceSetTemperatureThreshold_handler");
-        nvmlDeviceSetTemperatureThreshold_handler(client_fd, jobj);
+        nvmlDeviceSetTemperatureThreshold_handler(client_fd, jobj);  // FIXME this needs to be checked; I couldn't set it even with sudo rights (failed w/ INVALID_ARGUMENT)
     } else if (strcmp(action, "nvmlDeviceGetMemoryInfo") == 0){
         PRINTLN_SO("nvmlDeviceGetMemoryInfo_handler");
         nvmlDeviceGetMemoryInfo_handler(client_fd, jobj);
@@ -897,7 +897,8 @@ void nvmlDeviceGetTemperatureThreshold_handler(const int client_fd, const json_o
         acoustic_max,
         gps_curr
     );
-    RESPOND(client_fd, buffer, map_nvmlReturn_t_to_string(lo_nvml_result), lo_nvml_result == NVML_ERROR_NOT_SUPPORTED ? "Some values might be garbage denoted by UINT_MAX" : NULL);
+    char *desc = lo_nvml_result == NVML_ERROR_NOT_SUPPORTED ? "Some values might be garbage (denoted by UINT_MAX)" : NULL;
+    RESPOND(client_fd, buffer, map_nvmlReturn_t_to_string(lo_nvml_result), desc);
 }
 
 void nvmlDeviceGetThermalSettings_handler(const int client_fd, const json_object *jobj) {
@@ -961,7 +962,79 @@ void nvmlDeviceGetThermalSettings_handler(const int client_fd, const json_object
 }
 
 void nvmlDeviceSetTemperatureThreshold_handler(const int client_fd, const json_object *jobj) {
-    // TODO impl
+    json_object *uuid_field = json_object_object_get(jobj, "uuid");
+    if (uuid_field == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        return;
+    }
+
+    const char *uuid = json_object_get_string(uuid_field);
+    if (uuid == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
+        return;
+    }
+
+    json_object *threshold_type_field = json_object_object_get(jobj, "thresholdType");
+    if (threshold_type_field == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'thresholdType' field does not exist in $ (root) jobj");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'thresholdType' field does not exist in $ (root) jobj");
+        return;
+    }
+
+    const char *threshold_type = json_object_get_string(threshold_type_field);
+    if (threshold_type == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'thresholdType' field does have a valid value");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'thresholdType' field does have a valid value");
+        return;
+    }
+
+    const nvmlTemperatureThresholds_t threshold_type_t = map_nvmlTemperatureThresholds_t_to_enum(threshold_type);
+    if (threshold_type_t == NVML_TEMPERATURE_THRESHOLD_COUNT) {
+        PRINTLN_SO("Invalid JSON schema: 'thresholdType' field does have a valid value (is not in nvmlTemperatureThresholds_t enum)");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'thresholdType' field does have a valid value (is not in nvmlTemperatureThresholds_t enum)");
+        return;
+    }
+
+    const json_object *temp_field = json_object_object_get(jobj, "temp");
+    if (temp_field == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'temp' field does not exist in $ (root) jobj");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'temp' field does not exist in $ (root) jobj");
+        return;
+    }
+
+    if (!json_object_is_type(temp_field, json_type_int)) {
+        PRINTLN_SO("Invalid JSON schema: 'temp' field is not an int");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'temp' field is not an int");
+        return;
+    }
+
+    int temp = json_object_get_int(temp_field);
+    if (temp < 0) {
+        PRINTLN_SO("Invalid JSON schema: 'temp' field is not >= 0");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'temp' field is not >= 0");
+        return;
+    }
+
+    nvmlDevice_t device;
+    gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
+    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
+        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
+        return;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Couldn't get device handle w/ uuid %s", uuid);
+
+    gl_nvml_result = nvmlDeviceSetTemperatureThreshold(device, threshold_type_t, &temp);
+    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
+        PRINTLN_SO("Couldn't set temperature threshold for uuid %s, type %d, temp %d", uuid, threshold_type_t, temp);
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't set temperature threshold! If this error is an INVALID_ARGUMENT type error, this might be a 'bug': https://forums.developer.nvidia.com/t/nvmldevicesettemperaturethreshold-api-returns-invalid-argument-error/279650/3");
+        return;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Catastrophic failure when setting temperature for uuid %s, type %d, temp %d", uuid, threshold_type_t, temp);
+
+    RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Successfully set temperature threshold!");
 }
 
 // ----------------------------- GENERIC  -----------------------------

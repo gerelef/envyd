@@ -77,6 +77,34 @@ static nvmlPowerScopeType_t map_nvmlPowerScopeType_t_to_enum(const char* power_s
     return CHAR_MAX;
 }
 
+static nvmlTemperatureThresholds_t map_nvmlTemperatureThresholds_t_to_enum(const char* temperature_thresholds) {
+    if (strcmp("NVML_TEMPERATURE_THRESHOLD_SHUTDOWN", temperature_thresholds) == 0) {
+        return NVML_TEMPERATURE_THRESHOLD_SHUTDOWN;
+    }
+    if (strcmp("NVML_TEMPERATURE_THRESHOLD_SLOWDOWN", temperature_thresholds) == 0) {
+        return NVML_TEMPERATURE_THRESHOLD_SLOWDOWN;
+    }
+    if (strcmp("NVML_TEMPERATURE_THRESHOLD_MEM_MAX", temperature_thresholds) == 0) {
+        return NVML_TEMPERATURE_THRESHOLD_MEM_MAX;
+    }
+    if (strcmp("NVML_TEMPERATURE_THRESHOLD_GPU_MAX", temperature_thresholds) == 0) {
+        return NVML_TEMPERATURE_THRESHOLD_GPU_MAX;
+    }
+    if (strcmp("NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_MIN", temperature_thresholds) == 0) {
+        return NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_MIN;
+    }
+    if (strcmp("NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_CURR", temperature_thresholds) == 0) {
+        return NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_CURR;
+    }
+    if (strcmp("NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_MAX", temperature_thresholds) == 0) {
+        return NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_MAX;
+    }
+    if (strcmp("NVML_TEMPERATURE_THRESHOLD_GPS_CURR", temperature_thresholds) == 0) {
+        return NVML_TEMPERATURE_THRESHOLD_GPS_CURR;
+    }
+    return NVML_TEMPERATURE_THRESHOLD_COUNT;
+}
+
 static char *map_nvmlReturn_t_to_string(const nvmlReturn_t nvmlReturn) {
     switch (nvmlReturn) {
         case NVML_SUCCESS:
