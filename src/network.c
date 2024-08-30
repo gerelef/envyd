@@ -13,7 +13,6 @@ void assign_task(const int client_fd, const char *action, const json_object *job
 // power
 void nvmlDeviceGetPowerManagementDefaultLimit_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceGetPowerManagementLimit_handler(const int client_fd, const json_object *jobj);
-void nvmlDeviceGetPowerManagementMode_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceGetPowerManagementLimitConstraints_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceGetPowerUsage_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceSetPowerManagementLimit_handler(const int client_fd, const json_object *jobj);
@@ -113,10 +112,6 @@ void assign_task(const int client_fd, const char *action, const json_object *job
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1gf754f109beca3a4a8c8c1cd650d7d66c
         PRINTLN_SO("nvmlDeviceGetPowerManagementLimit_handler");
         nvmlDeviceGetPowerManagementLimit_handler(client_fd, jobj);
-    } else if (strcmp(action, "nvmlDeviceGetPowerManagementMode") == 0) {
-        // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g10365092adc37d7a17d261db8fe63fb6
-        PRINTLN_SO("nvmlDeviceGetPowerManagementMode_handler");
-        nvmlDeviceGetPowerManagementMode_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetPowerManagementLimitConstraints") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g350d841176116e366284df0e5e2fe2bf
         PRINTLN_SO("nvmlDeviceGetPowerManagementLimitConstraints_handler");
@@ -262,10 +257,6 @@ void nvmlDeviceGetPowerManagementLimit_handler(const int client_fd, const json_o
     RESPOND(client_fd, buffer, map_nvmlReturn_t_to_string(gl_nvml_result), NULL);
 }
 
-void nvmlDeviceGetPowerManagementMode_handler(const int client_fd, const json_object *jobj) {
-    // TODO impl
-}
-
 void nvmlDeviceGetPowerManagementLimitConstraints_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
@@ -342,7 +333,84 @@ void nvmlDeviceGetPowerUsage_handler(const int client_fd, const json_object *job
 }
 
 void nvmlDeviceSetPowerManagementLimit_handler(const int client_fd, const json_object *jobj) {
-    // TODO impl
+    json_object *uuid_field = json_object_object_get(jobj, "uuid");
+    if (uuid_field == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        return;
+    }
+
+    const char *uuid = json_object_get_string(uuid_field);
+    if (uuid == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
+        return;
+    }
+
+    json_object *scope_field = json_object_object_get(jobj, "powerScope");
+    if (scope_field == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'powerScope' field does not exist in $ (root) jobj");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'powerScope' field does not exist in $ (root) jobj");
+        return;
+    }
+
+    const char *scope = json_object_get_string(scope_field);
+    if (scope == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'powerScope' field does have a valid value");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'powerScope' field does have a valid value");
+        return;
+    }
+
+    const nvmlPowerScopeType_t scope_type = map_nvmlPowerScopeType_t_to_enum(scope);
+    if (scope_type == CHAR_MAX) {
+        PRINTLN_SO("Invalid JSON schema: 'powerScope' field did not evaluate to anything within the nvmlPowerScopeType_t (value must be NVML_POWER_SCOPE_GPU or NVML_POWER_SCOPE_MODULE or NVML_POWER_SCOPE_MEMORY)");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'powerScope' field did not evaluate to anything within the nvmlPowerScopeType_t (value must be NVML_POWER_SCOPE_GPU or NVML_POWER_SCOPE_MODULE or NVML_POWER_SCOPE_MEMORY)");
+        return;
+    }
+
+    const json_object *power_value_field = json_object_object_get(jobj, "powerValueMw");
+    if (power_value_field == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'powerValueMw' field does not exist in $ (root) jobj");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'powerValueMw' field does not exist in $ (root) jobj");
+        return;
+    }
+
+    if (!json_object_is_type(power_value_field, json_type_int)) {
+        PRINTLN_SO("Invalid JSON schema: 'powerValueMw' field is not an int");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'powerValueMw' field is not an int");
+        return;
+    }
+
+    const int power_value = json_object_get_int(power_value_field);
+    if (power_value < 0) {
+        PRINTLN_SO("Invalid JSON schema: 'powerValueMw' field is not >= 0");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'powerValueMw' field is not >= 0");
+        return;
+    }
+
+    nvmlDevice_t device;
+    gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
+    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
+        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
+        return;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Couldn't get device handle w/ uuid %s", uuid);
+
+    nvmlPowerValue_v2_t power_value_s;
+    power_value_s.version = nvmlPowerValue_v2;
+    // powerScope NVML_POWER_SCOPE_GPU or NVML_POWER_SCOPE_MODULE or NVML_POWER_SCOPE_MEMORY
+    power_value_s.powerScope = scope_type;
+    power_value_s.powerValueMw = power_value;
+    gl_nvml_result = nvmlDeviceSetPowerManagementLimit_v2(device, &power_value_s);
+    if (ERROR(gl_nvml_result)) {
+        PRINTLN_SO("Couldn't set power management limit w/ uuid %s and version %u, type %d, mw %u", uuid, power_value_s.version, power_value_s.powerScope, power_value_s.powerValueMw);
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't set power management limit");
+        return;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Couldn't set power management limit w/ uuid %s and version %u, type %d, mw %u", uuid, power_value_s.version, power_value_s.powerScope, power_value_s.powerValueMw);
+
+    RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), NULL);
 }
 
 void nvmlDeviceSetTemperatureThreshold_handler(const int client_fd, const json_object *jobj) {
@@ -571,7 +639,7 @@ void nvmlDeviceSetAPIRestriction_handler(const int client_fd, const json_object 
         return;
     }
 
-    const nvmlRestrictedAPI_t api_type = map_restricted_api_type_to_enum(type);
+    const nvmlRestrictedAPI_t api_type = map_nvmlRestrictedAPI_t_to_enum(type);
     if (api_type == NVML_RESTRICTED_API_COUNT) {
         PRINTLN_SO("Invalid JSON schema: 'apiType' field did not evaluate to anything within the nvmlRestrictedAPI_t enum");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'apiType' field did not evaluate to anything within the nvmlRestrictedAPI_t enum");
@@ -643,7 +711,7 @@ void nvmlDeviceGetAPIRestriction_handler(const int client_fd, const json_object 
         return;
     }
 
-    const nvmlRestrictedAPI_t api_type = map_restricted_api_type_to_enum(type);
+    const nvmlRestrictedAPI_t api_type = map_nvmlRestrictedAPI_t_to_enum(type);
     if (api_type == NVML_RESTRICTED_API_COUNT) {
         PRINTLN_SO("Invalid JSON schema: 'apiType' field did not evaluate to anything within the nvmlRestrictedAPI_t enum");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'apiType' field did not evaluate to anything within the nvmlRestrictedAPI_t enum");
@@ -920,7 +988,7 @@ void nvmlDeviceGetMemoryInfo_handler(const int client_fd, const json_object *job
     if (FATAL(gl_nvml_result)) WTF("Couldn't get device handle w/ uuid %s", uuid);
 
     nvmlMemory_v2_t nvml_memory;
-    nvml_memory.version = (unsigned int)(sizeof(nvmlMemory_v2_t) | 2 << 24U);
+    nvml_memory.version = NVML_STRUCT_VERSION(Memory, 2);
     gl_nvml_result = nvmlDeviceGetMemoryInfo_v2(device, &nvml_memory);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
         PRINTLN_SO("Couldn't resolve memory info to device!");

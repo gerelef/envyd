@@ -2,6 +2,7 @@
 #define HELPERS_H
 
 #include <assert.h>
+#include <limits.h>
 #include <nvml.h>
 
 extern nvmlReturn_t gl_nvml_result;  // global; use for panics
@@ -53,7 +54,7 @@ static double bytes_to_denominator(const sizeDenominator_t denominator, const un
     return (double) byteCount / (double) denominator;
 }
 
-static nvmlRestrictedAPI_t map_restricted_api_type_to_enum(const char* restricted_api) {
+static nvmlRestrictedAPI_t map_nvmlRestrictedAPI_t_to_enum(const char* restricted_api) {
     if (strcmp("NVML_RESTRICTED_API_SET_APPLICATION_CLOCKS", restricted_api) == 0) {
         return NVML_RESTRICTED_API_SET_APPLICATION_CLOCKS;
     }
@@ -61,6 +62,19 @@ static nvmlRestrictedAPI_t map_restricted_api_type_to_enum(const char* restricte
         return NVML_RESTRICTED_API_SET_AUTO_BOOSTED_CLOCKS;
     }
     return NVML_RESTRICTED_API_COUNT;
+}
+
+static nvmlPowerScopeType_t map_nvmlPowerScopeType_t_to_enum(const char* power_scope) {
+    if (strcmp("NVML_POWER_SCOPE_GPU", power_scope) == 0) {
+        return NVML_POWER_SCOPE_GPU;
+    }
+    if (strcmp("NVML_POWER_SCOPE_MODULE", power_scope) == 0) {
+        return NVML_POWER_SCOPE_MODULE;
+    }
+    if (strcmp("NVML_POWER_SCOPE_MEMORY", power_scope) == 0) {
+        return NVML_POWER_SCOPE_MEMORY;
+    }
+    return CHAR_MAX;
 }
 
 static char *map_nvmlReturn_t_to_string(const nvmlReturn_t nvmlReturn) {
