@@ -4,6 +4,21 @@ Daemon for `nvml`, to configure & monitor NVIDIA GPUs on the fly.
 This is a (typically `systemd`) daemon that will serve the `nvml` API conveniently over a (unix, by default) socket. \ 
 The service was initially created to serve as a backend for software like [MSI Afterburner](https://www.msi.com/Landing/afterburner/graphics-cards), albeit in Linux. 
 
+* [usage](#usage)
+  + [request template](#request-template)
+  + [response template](#response-template)
+* [cookbook / examples](#cookbook---examples)
+  + [`nvmlDeviceGetDetailsAll` (starting point, `envyd` specific endpoint)](#-nvmldevicegetdetailsall---starting-point---envyd--specific-endpoint-)
+    - [request](#request)
+    - [response](#response)
+  + [`nvmlDeviceGetPowerManagementLimitConstraints`](#-nvmldevicegetpowermanagementlimitconstraints-)
+    - [request](#request-1)
+    - [response](#response-1)
+* [special actions (i.e. endpoints that do not match the `nvml` API)](#special-actions--ie-endpoints-that-do-not-match-the--nvml--api-)
+  + [`nvmlDeviceGetDetailsAll`](#-nvmldevicegetdetailsall-)
+* [special statuses (i.e. not belonging to nvmlReturn_t)](#special-statuses--ie-not-belonging-to-nvmlreturn-t-)
+* [contributing](#contributing)
+
 ## usage
 Wherever 'nvmlDevice_t device' appears on the parameters of a function in the NVIDIA documentation,
 substitute that parameter with `uuid`, which is the unique identifier for the specific GPU device.
@@ -21,9 +36,9 @@ When a parameter to an API is invalid, a detailed text will be provided.
 ### request template
 ```json
 {
-    "bearer": "token",
-    "action": "nvmlDeviceGetMemoryInfo_v2",
-    "uuid": "GPU-uuid-thingy-here"
+    "bearer": "token", // OPTIONAL
+    "action": "nvmlDeviceGetMemoryInfo_v2",  // REQUIRED
+    "uuid": "GPU-uuid-thingy-here" // OPTIONAL (required for anything that specifies a 'nvmlDevice_t' as an argument)
 }
 ```
 Note:
@@ -58,8 +73,9 @@ Note:
 - The description serves as a human-readable way to understand what went wrong. Excuse the generic error messages, if do you stumble upon any.  
 
 
-## cookbook
-Test actions via `netcat`, `jq` required for formatting purposes:
+## cookbook / examples
+Test actions via `netcat`, `jq` required for formatting purposes
+### `nvmlDeviceGetDetailsAll` (starting point, `envyd` specific endpoint)
 ```bash
 > echo '{"action": "nvmlDeviceGetDetailsAll"}' | jq . | nc -NU '/tmp/envyd.socket' | jq .
 {
@@ -79,12 +95,92 @@ Test actions via `netcat`, `jq` required for formatting purposes:
   "description": "Successfully successfully generated device list."
 }
 ```
+#### request 
+```json
+{"action": "nvmlDeviceGetDetailsAll"}
+```
+#### response
+```json
+{
+  "data": {
+    "count": 1,
+    "devices": [
+      {
+        "uuid": "GPU-06358cc0-eaaa-36de-0ec6-02c0be62ddef",
+        "name": "NVIDIA GeForce RTX 2070 SUPER",
+        "gsp_version": "560.35.03",
+        "gsp_mode": 1,
+        "gsp_default-mode": 1
+      }
+    ]
+  },
+  "status": "NVML_SUCCESS",
+  "description": "Successfully successfully generated device list."
+}
+```
+### `nvmlDeviceGetPowerManagementLimitConstraints`
+```bash
+> echo '{"action": "nvmlDeviceGetPowerManagementLimitConstraints", "uuid": "GPU-06358cc0-eaaa-36de-0ec6-02c0be62ddef"}' | jq . | nc -NU '/tmp/envyd.socket' | jq .
+{
+  "data": {
+    "minLimit": 125000,
+    "maxLimit": 250000
+  },
+  "status": "NVML_SUCCESS",
+  "description": null
+}
+```
+#### request
+```json
+{
+  "action": "nvmlDeviceGetPowerManagementLimitConstraints",
+  "uuid": "GPU-06358cc0-eaaa-36de-0ec6-02c0be62ddef"
+}
+```
+#### response
+```json
+{
+  "data": {
+    "minLimit": 125000,
+    "maxLimit": 250000
+  },
+  "status": "NVML_SUCCESS",
+  "description": null
+}
+```
 
 ## special actions (i.e. endpoints that do not match the `nvml` API)
 These are all accessible in the same way as any other `action`.
 ```
 nvmlDeviceGetDetailsAll
 ```
+Details:
+### `nvmlDeviceGetDetailsAll`
+- arguments: `N/A`
+- returns (on success):
+```json
+{
+  "data": {
+    "count": 1,
+    "devices": [
+      {
+        "uuid": "GPU-06358cc0-eaaa-36de-0ec6-02c0be62ddef",
+        "name": "NVIDIA GeForce RTX 2070 SUPER",
+        "gsp_version": "560.35.03",
+        "gsp_mode": 1,
+        "gsp_default-mode": 1
+      }
+    ]
+  },
+  "status": "NVML_SUCCESS",
+  "description": "Successfully successfully generated device list."
+}
+```
+- does: for every GPU found, combines the output of the following commands:
+  1. `nvmlDeviceGetUUID` -> `uuid` for the device; used for every other call that requires a `nvmlDevice_t`
+  2. `nvmlDeviceGetName` -> human-readable name
+  3. `nvmlDeviceGetGspFirmwareVersion`
+  4. `nvmlDeviceGetGspFirmwareMode`
 
 ## special statuses (i.e. not belonging to nvmlReturn_t)
 ```
@@ -94,9 +190,12 @@ UNDEFINED_INVALID_ACTION
 ```
 
 ## contributing
-If you want to help, this project needs the following four things:
+The official scope of the project, is to simplify the life of anyone who's managing GPUS through `nvml` on Linux. \
+To do so successfully & you want to help, this project needs the following four things to succeed:
 1. Feedback. Please report back w/ your experience using this service! we're looking for practical feedback regarding the following: (1) error codes (status messages), (2) descriptions, (3) cohesion.
-  Feedback regarding `nvml` itself is out of scope, as it is ownership of NVIDIA.
+   Feedback regarding `nvml` itself is out of scope, as it is ownership of NVIDIA.
 2. Scope. This service needs to expand its scope to anything that the `nvml` library itself supports; this is possible only by other people contributing! Register your own `nvmlMethodName_handler` in `network.c`, it should only take a few minutes.
-3. Adoption. In an ideal world, there are no competing standards: there is only **one**, well-supported, community implementation, backed by a strict, well-written standard (in this case, the latest `nvml.h` serves this purpose). 
+3. Documentation. This service needs to enhance its documentation; not everyone is gifted with the same skills of communication, and this project is certainly no exception. 
+   If you have the time, kindly write some documentation that you think might be obscure to people w/o the necessary business knowledge!  
+4. Adoption. In an ideal world, there are no competing standards: there is only **one**, well-supported, community implementation, backed by a strict, well-written standard (in this case, the latest `nvml.h` serves this purpose). 
   To achieve this goal, if you're thinking about creating a tool that interacts with `nvml`, aka manages an NVIDIA GPU, consider using this tool instead of the alternatives!
