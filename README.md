@@ -131,12 +131,19 @@ Test actions via `netcat`, `jq` required for formatting purposes
 }
 ```
 #### request
+original NVML signature was: 
+```
+nvmlReturn_t nvmlDeviceGetPowerManagementLimitConstraints (nvmlDevice_t device, unsigned int* minLimit, unsigned int* maxLimit)
+```
+... converted into the following `envyd` call:
 ```json
 {
   "action": "nvmlDeviceGetPowerManagementLimitConstraints",
   "uuid": "GPU-06358cc0-eaaa-36de-0ec6-02c0be62ddef"
 }
 ```
+remember, we substitute any `nvmlDevice_t` with the `uuid` of said device, which you can get through `nvmlDeviceGetDetailsAll`.
+
 #### response
 ```json
 {
