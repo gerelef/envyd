@@ -10,6 +10,8 @@ ssize_t sso_read(const int socket_fd, char *buffer /*out*/, const size_t size);
 void assign_task(const int client_fd, const char *action, const json_object *jobj);
 
 // handlers
+// fans
+void nvmlDeviceGetNumFans_handler(const int client_fd, const json_object *jobj);
 // restrictions
 void nvmlDeviceSetAPIRestriction_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceGetAPIRestriction_handler(const int client_fd, const json_object *jobj);
@@ -51,7 +53,7 @@ void process(const int client_fd, const struct timeval *tv_timeout) {
         return;
     }
 
-    const ssize_t bytes_received = sso_read(client_fd, so_buffer, SO_INPUT_BUFFER_SIZE);
+    const ssize_t bytes_received = sso_read(client_fd, so_buffer, SO_INPUT_BUFFER_SIZE - 1);
     if (bytes_received < 0) {
         PRINTLN_SO("Failed to read from socket! Returning early...");
         return;
@@ -92,7 +94,11 @@ void process(const int client_fd, const struct timeval *tv_timeout) {
 void assign_task(const int client_fd, const char *action, const json_object *jobj) {
     assert(jobj != NULL); // sanity
     PRINTLN_SO("Got action '%s', length %lu", action, strlen(action));
-    if (strcmp(action, "nvmlDeviceSetAPIRestriction") == 0) {
+    if (strcmp(action, "nvmlDeviceGetNumFans") == 0) {
+        // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g49dfc28b9d0c68f487f9321becbcad3e
+        PRINTLN_SO("nvmlDeviceGetNumFans_handler");
+        nvmlDeviceGetNumFans_handler(client_fd, jobj);
+    } else if (strcmp(action, "nvmlDeviceSetAPIRestriction") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g49dfc28b9d0c68f487f9321becbcad3e
         PRINTLN_SO("nvmlDeviceSetAPIRestriction_handler");
         nvmlDeviceSetAPIRestriction_handler(client_fd, jobj);
@@ -127,6 +133,35 @@ void assign_task(const int client_fd, const char *action, const json_object *job
         PRINTLN_SO("Got erroneous action %s, couldn't resolve provided action to any valid action!", action);
         RESPOND(client_fd, NULL, UNDEFINED_INVALID_ACTION, "Couldn't resolve provided action to any valid envyd or NVML action.");
     }
+}
+
+// ----------------------------- FANS -----------------------------
+void nvmlDeviceGetNumFans_handler(const int client_fd, const json_object *jobj) {
+    json_object *uuid_field = json_object_object_get(jobj, "uuid");
+    if (uuid_field == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        return;
+    }
+
+    const char *uuid = json_object_get_string(uuid_field);
+    if (uuid == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
+        return;
+    }
+
+    unsigned int num_fans;
+    gl_nvml_result = nvmlDeviceGetCount_v2(&num_fans);
+    if (ERROR(gl_nvml_result)) {
+        PRINTLN_SO("Couldn't get count of fans!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't get count of fans");
+        return;
+    }
+
+    char buffer[128];
+    sprintf(buffer, "{ \"count\": %u }", num_fans);
+    RESPOND(client_fd, buffer, map_nvmlReturn_t_to_string(gl_nvml_result), NULL);
 }
 
 // ----------------------------- RESTRICTIONS -----------------------------
