@@ -32,15 +32,20 @@ typedef struct networkResponse_st {
 #define STRINGIFY_NULLABLE(s) s == NULL ? "null" : s
 
 #define RESPOND(client_fd, datum, status, desc) do { \
-    if (so_buffer == NULL) WTF("I/O buffer is null?!"); \
-    unsigned long long bytes_to_send = snprintf(so_buffer, SO_INPUT_BUFFER_SIZE - 1, "{ \"data\": %s, \"status\": %s%s%s, \"description\": %s%s%s}", \
+    size_t datum_len = datum != NULL ? strlen(datum) : 4; \
+    size_t status_len = status != NULL ? strlen(status) : 4; \
+    size_t desc_len = desc != NULL ? strlen(desc) : 4; \
+    size_t len = datum_len + status_len + desc_len + 96; \
+    char* send_buffer = calloc(sizeof(char), len); \
+    unsigned long long bytes_to_send = snprintf(send_buffer, len - 1, "{ \"data\": %s, \"status\": %s%s%s, \"description\": %s%s%s}", \
         STRINGIFY_NULLABLE(datum), \
         status == NULL ? "" : "\"", STRINGIFY_NULLABLE(status), status == NULL ? "" : "\"", \
         desc == NULL   ? "" : "\"", STRINGIFY_NULLABLE(desc), desc == NULL     ? "" : "\""  \
     ); \
-    ssize_t written = write(client_fd, so_buffer, bytes_to_send); \
-    PRINTLN_SO("Writing to client_fd %d: %s", client_fd, so_buffer); \
+    ssize_t written = write(client_fd, send_buffer, bytes_to_send); \
+    PRINTLN_SO("Writing to client_fd %d: %s", client_fd, send_buffer); \
     if (written < 0) PRINTLN_SO("Couldn't write to fd %d", client_fd); \
+    free(send_buffer); \
     } while (0)
 
 typedef struct networkRequest_st {

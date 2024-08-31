@@ -97,8 +97,7 @@ void process(const int client_fd, const struct timeval *tv_timeout) {
         PRINTLN_SO("Invalid JSON schema: 'action' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA,
                  "Invalid JSON schema: 'action' field does not exist in $ (root) jobj");
-        if (json_object_put(jobj) != 0)
-            WTF("Couldn't free jobj!");
+        if (json_object_put(jobj) != 0) WTF("Couldn't free jobj!");
         return;
     }
 
@@ -106,8 +105,7 @@ void process(const int client_fd, const struct timeval *tv_timeout) {
     if (action == NULL) {
         PRINTLN_SO("Invalid JSON schema: 'action' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'action' field does have a valid value");
-        if (json_object_put(jobj) != 0)
-            WTF("Couldn't free jobj!");
+        if (json_object_put(jobj) != 0) WTF("Couldn't free jobj!");
         return;
     }
 
@@ -574,11 +572,117 @@ void nvmlDeviceGetMaxClockInfo_handler(const int client_fd, const json_object *j
 }
 
 void nvmlDeviceGetSupportedGraphicsClocks_handler(const int client_fd, const json_object *jobj) {
-    // TODO impl
+    json_object *uuid_field = json_object_object_get(jobj, "uuid");
+    if (uuid_field == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        return;
+    }
+
+    const char *uuid = json_object_get_string(uuid_field);
+    if (uuid == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
+        return;
+    }
+
+    const json_object *memory_clock_field = json_object_object_get(jobj, "memoryClockMHZ");
+    if (memory_clock_field == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'memoryClockMHZ' field does not exist in $ (root) jobj");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'memoryClockMHZ' field does not exist in $ (root) jobj");
+        return;
+    }
+
+    if (!json_object_is_type(memory_clock_field, json_type_int)) {
+        PRINTLN_SO("Invalid JSON schema: 'memoryClockMHZ' field is not an int");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'memoryClockMHZ' field is not an int");
+        return;
+    }
+
+    const int memoryClockMHZ = json_object_get_int(memory_clock_field);
+    if (memoryClockMHZ < 0) {
+        PRINTLN_SO("Invalid JSON schema: 'memoryClockMHZ' field is not >= 0");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'memoryClockMHZ' field is not >= 0");
+        return;
+    }
+
+    nvmlDevice_t device;
+    gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
+    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
+        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
+        return;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Couldn't get device handle w/ uuid %s", uuid);
+
+    unsigned int count = 1024;
+    unsigned int* clocksMHZ = calloc(sizeof(unsigned int), count);
+    gl_nvml_result = nvmlDeviceGetSupportedGraphicsClocks(device, memoryClockMHZ, &count, clocksMHZ);
+    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
+        free(clocksMHZ);
+        PRINTLN_SO("Couldn't resolve get supported graphics clocks for device w/ count %u!", count);
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve get supported graphics clocks for device!");
+        return;
+    }
+
+    char* buff = calloc(sizeof(char), count*16);
+    sprintf(buff, "[");
+    for (int i = 0; i < count; ++i) {
+        char supported_clock[72];
+        sprintf(supported_clock, "%s%d", i > 0 ? "," : "", clocksMHZ[i]);
+        strcat(buff, supported_clock);
+    }
+    buff[strlen(buff)] = ']';
+    RESPOND(client_fd, buff, map_nvmlReturn_t_to_string(gl_nvml_result), NULL);
+    free(clocksMHZ);
+    free(buff);
 }
 
 void nvmlDeviceGetSupportedMemoryClocks_handler(const int client_fd, const json_object *jobj) {
-    // TODO impl
+    json_object *uuid_field = json_object_object_get(jobj, "uuid");
+    if (uuid_field == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        return;
+    }
+
+    const char *uuid = json_object_get_string(uuid_field);
+    if (uuid == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
+        return;
+    }
+
+    nvmlDevice_t device;
+    gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
+    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
+        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
+        return;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Couldn't get device handle w/ uuid %s", uuid);
+
+    unsigned int count = 1024;
+    unsigned int* clocksMHZ = calloc(sizeof(unsigned int), count);
+    gl_nvml_result = nvmlDeviceGetSupportedMemoryClocks(device, &count, clocksMHZ);
+    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
+        free(clocksMHZ);
+        PRINTLN_SO("Couldn't resolve get supported memory clocks for device w/ count %u!", count);
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve get supported memory clocks for device!");
+        return;
+    }
+
+    char* buff = calloc(sizeof(char), 8192);
+    sprintf(buff, "[");
+    for (int i = 0; i < count; ++i) {
+        char supported_clock[72];
+        sprintf(supported_clock, "%s%d", i > 0 ? "," : "", clocksMHZ[i]);
+        strcat(buff, supported_clock);
+    }
+    buff[strlen(buff)] = ']';
+    RESPOND(client_fd, buff, map_nvmlReturn_t_to_string(gl_nvml_result), NULL);
+    free(clocksMHZ);
+    free(buff);
 }
 
 void nvmlDeviceSetClockOffsets_handler(const int client_fd, const json_object *jobj) {
