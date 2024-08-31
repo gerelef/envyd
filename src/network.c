@@ -11,6 +11,7 @@ void assign_task(const int client_fd, const char *action, const json_object *job
 
 // handlers
 // clocks
+void nvmlDeviceGetAdaptiveClockInfoStatus_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceResetApplicationsClocks_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceResetGpuLockedClocks_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceResetMemoryLockedClocks_handler(const int client_fd, const json_object *jobj);
@@ -109,7 +110,11 @@ void process(const int client_fd, const struct timeval *tv_timeout) {
 void assign_task(const int client_fd, const char *action, const json_object *jobj) {
     assert(jobj != NULL); // sanity
     PRINTLN_SO("Got action '%s', length %lu", action, strlen(action));
-    if (strcmp(action, "nvmlDeviceResetApplicationsClocks") == 0) {
+    if (strcmp(action, "nvmlDeviceGetAdaptiveClockInfoStatus") == 0) {
+        // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1gf615cda86fd569ce30a25d441b0f5c3a
+        PRINTLN_SO("nvmlDeviceGetAdaptiveClockInfoStatus_handler");
+        nvmlDeviceGetAdaptiveClockInfoStatus_handler(client_fd, jobj);
+    } else if (strcmp(action, "nvmlDeviceResetApplicationsClocks") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceCommands.html#group__nvmlDeviceCommands_1gbe6c0458851b3db68fa9d1717b32acd1
         PRINTLN_SO("nvmlDeviceResetApplicationsClocks_handler");
         nvmlDeviceResetApplicationsClocks_handler(client_fd, jobj);
@@ -199,6 +204,44 @@ void assign_task(const int client_fd, const char *action, const json_object *job
 }
 
 // ----------------------------- CLOCKS -----------------------------
+
+void nvmlDeviceGetAdaptiveClockInfoStatus_handler(const int client_fd, const json_object *jobj) {
+    json_object *uuid_field = json_object_object_get(jobj, "uuid");
+    if (uuid_field == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        return;
+    }
+
+    const char *uuid = json_object_get_string(uuid_field);
+    if (uuid == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
+        return;
+    }
+
+    nvmlDevice_t device;
+    gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
+    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
+        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
+        return;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Couldn't get device handle w/ uuid %s", uuid);
+
+    unsigned int status;
+    gl_nvml_result = nvmlDeviceGetAdaptiveClockInfoStatus(device, &status);
+    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
+        PRINTLN_SO("Couldn't resolve get adaptive clock info status for device!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't reset adaptive clock info status for device!");
+        return;
+    }
+
+    char* statusb = status == NVML_ADAPTIVE_CLOCKING_INFO_STATUS_ENABLED ? "true" : "false";
+    char buffer[64];
+    sprintf(buffer, "{ \"adaptiveClockStatus\": %s }", statusb);
+    RESPOND(client_fd, buffer, map_nvmlReturn_t_to_string(gl_nvml_result), NULL);
+}
 
 void nvmlDeviceResetApplicationsClocks_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
