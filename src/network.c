@@ -21,6 +21,8 @@ void nvmlDeviceGetSupportedGraphicsClocks_handler(const int client_fd, const jso
 void nvmlDeviceGetSupportedMemoryClocks_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceSetClockOffsets_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceSetMemoryLockedClocks_handler(const int client_fd, const json_object *jobj);
+void nvmlDeviceSetApplicationsClocks_handler(const int client_fd, const json_object *jobj);
+void nvmlDeviceSetGpuLockedClocks_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceResetApplicationsClocks_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceResetGpuLockedClocks_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceResetMemoryLockedClocks_handler(const int client_fd, const json_object *jobj);
@@ -170,26 +172,34 @@ void assign_task(const int client_fd, const char *action, const json_object *job
         nvmlDeviceGetSupportedMemoryClocks_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceSetClockOffsets") == 0) {
         PRINTLN_SO("nvmlDeviceSetClockOffsets_handler");
-        AUTHORIZE("setting clock offsets", jobj);
+        CHECK_AUTHORIZATION("setting clock offsets", jobj);
         nvmlDeviceSetClockOffsets_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceSetMemoryLockedClocks") == 0) {
         PRINTLN_SO("nvmlDeviceSetMemoryLockedClocks_handler");
-        AUTHORIZE("setting memory locked clocks", jobj);
+        CHECK_AUTHORIZATION("setting memory locked clocks", jobj);
         nvmlDeviceSetMemoryLockedClocks_handler(client_fd, jobj);
+    } else if (strcmp(action, "nvmlDeviceSetApplicationsClocks") == 0) {
+        PRINTLN_SO("nvmlDeviceSetApplicationsClocks_handler");
+        CHECK_AUTHORIZATION("setting application locked clocks", jobj);
+        nvmlDeviceSetApplicationsClocks_handler(client_fd, jobj);
+    } else if (strcmp(action, "nvmlDeviceSetGpuLockedClocks") == 0) {
+        PRINTLN_SO("nvmlDeviceSetMemoryLockedClocks_handler");
+        CHECK_AUTHORIZATION("setting gpu locked clocks", jobj);
+        nvmlDeviceSetGpuLockedClocks_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceResetApplicationsClocks") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceCommands.html#group__nvmlDeviceCommands_1gbe6c0458851b3db68fa9d1717b32acd1
         PRINTLN_SO("nvmlDeviceResetApplicationsClocks_handler");
-        AUTHORIZE("resetting application clocks", jobj);
+        CHECK_AUTHORIZATION("resetting application clocks", jobj);
         nvmlDeviceResetApplicationsClocks_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceResetGpuLockedClocks") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceCommands.html#group__nvmlDeviceCommands_1g51a3ca282a33471fe50c19751a99ead2
         PRINTLN_SO("nvmlDeviceResetGpuLockedClocks_handler");
-        AUTHORIZE("resetting gpu locked clocks", jobj);
+        CHECK_AUTHORIZATION("resetting gpu locked clocks", jobj);
         nvmlDeviceResetGpuLockedClocks_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceResetMemoryLockedClocks") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceCommands.html#group__nvmlDeviceCommands_1gc131dbdbebe753f63b254e0ec76f7154
         PRINTLN_SO("nvmlDeviceResetMemoryLockedClocks_handler");
-        AUTHORIZE("resetting memory locked clocks", jobj);
+        CHECK_AUTHORIZATION("resetting memory locked clocks", jobj);
         nvmlDeviceResetMemoryLockedClocks_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetPowerManagementDefaultLimit") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1gd3ffb56cd39d079013dbfaba941eb31b
@@ -210,7 +220,7 @@ void assign_task(const int client_fd, const char *action, const json_object *job
     } else if (strcmp(action, "nvmlDeviceSetPowerManagementLimit") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1gd10040f340986af6cda91e71629edb2b
         PRINTLN_SO("nvmlDeviceSetPowerManagementLimit_handler");
-        AUTHORIZE("setting power management limit", jobj);
+        CHECK_AUTHORIZATION("setting power management limit", jobj);
         nvmlDeviceSetPowerManagementLimit_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetNumFans") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g49dfc28b9d0c68f487f9321becbcad3e
@@ -231,7 +241,7 @@ void assign_task(const int client_fd, const char *action, const json_object *job
     } else if (strcmp(action, "nvmlDeviceSetAPIRestriction") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g49dfc28b9d0c68f487f9321becbcad3e
         PRINTLN_SO("nvmlDeviceSetAPIRestriction_handler");
-        AUTHORIZE("setting api restrictions", jobj);
+        CHECK_AUTHORIZATION("setting api restrictions", jobj);
         nvmlDeviceSetAPIRestriction_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetAPIRestriction") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g49dfc28b9d0c68f487f9321becbcad3e
@@ -257,7 +267,7 @@ void assign_task(const int client_fd, const char *action, const json_object *job
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceCommands.html#group__nvmlDeviceCommands_1g0258912fc175951b8efe1440ca59e200
         PRINTLN_SO("nvmlDeviceSetTemperatureThreshold_handler");
         // FIXME this needs to be checked; I couldn't set it even with sudo rights (failed w/ INVALID_ARGUMENT)
-        AUTHORIZE("setting temperature threshold", jobj);
+        CHECK_AUTHORIZATION("setting temperature threshold", jobj);
         nvmlDeviceSetTemperatureThreshold_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetMemoryInfo") == 0){
         PRINTLN_SO("nvmlDeviceGetMemoryInfo_handler");
@@ -724,10 +734,22 @@ void nvmlDeviceGetSupportedMemoryClocks_handler(const int client_fd, const json_
 }
 
 void nvmlDeviceSetClockOffsets_handler(const int client_fd, const json_object *jobj) {
+    // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g7a0bb4cb513396b7f42be81ac2ea4428
     // TODO impl
 }
 
 void nvmlDeviceSetMemoryLockedClocks_handler(const int client_fd, const json_object *jobj) {
+    // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceCommands.html#group__nvmlDeviceCommands_1g3cab0aaf0e46aa76469f18707e5867f1
+    // TODO impl
+}
+
+void nvmlDeviceSetApplicationsClocks_handler(const int client_fd, const json_object *jobj) {
+    // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceCommands.html#group__nvmlDeviceCommands_1gc2a9a8db6fffb2604d27fd67e8d5d87f
+    // TODO impl
+}
+
+void nvmlDeviceSetGpuLockedClocks_handler(const int client_fd, const json_object *jobj) {
+    // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceCommands.html#group__nvmlDeviceCommands_1gc9b58cd685f4deee575400e2e6ac76cb
     // TODO impl
 }
 

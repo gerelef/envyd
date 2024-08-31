@@ -50,9 +50,9 @@ typedef struct networkResponse_st {
     } while (0)
 
 #ifdef INSECURE
-#define AUTHORIZE(api, jobj) do {} while(0)  // no-op
+#define CHECK_AUTHORIZATION(api, jobj) do {} while(0)  // no-op
 #else
-#define AUTHORIZE(api, jobj) do { \
+#define CHECK_AUTHORIZATION(api, jobj) do { \
         json_object *bearer_field = json_object_object_get(jobj, "bearer"); \
         if (bearer_field == NULL) { \
             PRINTLN_SO("Invalid JSON schema: 'bearer' field does not exist in $ (root) jobj"); \
