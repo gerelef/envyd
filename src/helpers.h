@@ -5,7 +5,7 @@
 #include <limits.h>
 #include <nvml.h>
 
-extern nvmlReturn_t gl_nvml_result;  // global; use for panics
+extern nvmlReturn_t gl_nvml_result; // global; use for panics
 
 #define WTF(...) do { \
     PRINTLN(__VA_ARGS__); \
@@ -54,7 +54,7 @@ static double bytes_to_denominator(const sizeDenominator_t denominator, const un
     return (double) byteCount / (double) denominator;
 }
 
-static nvmlRestrictedAPI_t map_nvmlRestrictedAPI_t_to_enum(const char* restricted_api) {
+static nvmlRestrictedAPI_t map_nvmlRestrictedAPI_t_to_enum(const char *restricted_api) {
     if (strcmp("NVML_RESTRICTED_API_SET_APPLICATION_CLOCKS", restricted_api) == 0) {
         return NVML_RESTRICTED_API_SET_APPLICATION_CLOCKS;
     }
@@ -64,7 +64,7 @@ static nvmlRestrictedAPI_t map_nvmlRestrictedAPI_t_to_enum(const char* restricte
     return NVML_RESTRICTED_API_COUNT;
 }
 
-static nvmlClockId_t map_nvmlClockId_t_to_enum(const char* clock_id_s) {
+static nvmlClockId_t map_nvmlClockId_t_to_enum(const char *clock_id_s) {
     if (strcmp("NVML_CLOCK_ID_CURRENT", clock_id_s) == 0) {
         return NVML_CLOCK_ID_CURRENT;
     }
@@ -80,7 +80,7 @@ static nvmlClockId_t map_nvmlClockId_t_to_enum(const char* clock_id_s) {
     return NVML_CLOCK_ID_COUNT;
 }
 
-static nvmlClockType_t map_nvmlClockType_t_to_enum(const char* clock_type_s) {
+static nvmlClockType_t map_nvmlClockType_t_to_enum(const char *clock_type_s) {
     if (strcmp("NVML_CLOCK_GRAPHICS", clock_type_s) == 0) {
         return NVML_CLOCK_GRAPHICS;
     }
@@ -96,7 +96,60 @@ static nvmlClockType_t map_nvmlClockType_t_to_enum(const char* clock_type_s) {
     return NVML_CLOCK_COUNT;
 }
 
-static nvmlPowerScopeType_t map_nvmlPowerScopeType_t_to_enum(const char* power_scope) {
+static nvmlPstates_t map_nvmlPstates_t_to_enum(const char *pstate_s) {
+    if (strcmp("NVML_PSTATE_0", pstate_s) == 0) {
+        return NVML_PSTATE_0;
+    }
+    if (strcmp("NVML_PSTATE_1", pstate_s) == 0) {
+        return NVML_PSTATE_1;
+    }
+    if (strcmp("NVML_PSTATE_2", pstate_s) == 0) {
+        return NVML_PSTATE_2;
+    }
+    if (strcmp("NVML_PSTATE_3", pstate_s) == 0) {
+        return NVML_PSTATE_3;
+    }
+    if (strcmp("NVML_PSTATE_4", pstate_s) == 0) {
+        return NVML_PSTATE_4;
+    }
+    if (strcmp("NVML_PSTATE_5", pstate_s) == 0) {
+        return NVML_PSTATE_5;
+    }
+    if (strcmp("NVML_PSTATE_6", pstate_s) == 0) {
+        return NVML_PSTATE_6;
+    }
+    if (strcmp("NVML_PSTATE_7", pstate_s) == 0) {
+        return NVML_PSTATE_7;
+    }
+    if (strcmp("NVML_PSTATE_8", pstate_s) == 0) {
+        return NVML_PSTATE_8;
+    }
+    if (strcmp("NVML_PSTATE_9", pstate_s) == 0) {
+        return NVML_PSTATE_9;
+    }
+    if (strcmp("NVML_PSTATE_10", pstate_s) == 0) {
+        return NVML_PSTATE_10;
+    }
+    if (strcmp("NVML_PSTATE_11", pstate_s) == 0) {
+        return NVML_PSTATE_11;
+    }
+    if (strcmp("NVML_PSTATE_12", pstate_s) == 0) {
+        return NVML_PSTATE_12;
+    }
+    if (strcmp("NVML_PSTATE_13", pstate_s) == 0) {
+        return NVML_PSTATE_13;
+    }
+    if (strcmp("NVML_PSTATE_14", pstate_s) == 0) {
+        return NVML_PSTATE_14;
+    }
+    if (strcmp("NVML_PSTATE_15", pstate_s) == 0) {
+        return NVML_PSTATE_15;
+    }
+
+    return NVML_PSTATE_UNKNOWN;
+}
+
+static nvmlPowerScopeType_t map_nvmlPowerScopeType_t_to_enum(const char *power_scope) {
     if (strcmp("NVML_POWER_SCOPE_GPU", power_scope) == 0) {
         return NVML_POWER_SCOPE_GPU;
     }
@@ -109,7 +162,7 @@ static nvmlPowerScopeType_t map_nvmlPowerScopeType_t_to_enum(const char* power_s
     return CHAR_MAX;
 }
 
-static nvmlTemperatureThresholds_t map_nvmlTemperatureThresholds_t_to_enum(const char* temperature_thresholds) {
+static nvmlTemperatureThresholds_t map_nvmlTemperatureThresholds_t_to_enum(const char *temperature_thresholds) {
     if (strcmp("NVML_TEMPERATURE_THRESHOLD_SHUTDOWN", temperature_thresholds) == 0) {
         return NVML_TEMPERATURE_THRESHOLD_SHUTDOWN;
     }
@@ -143,7 +196,7 @@ static char *map_nvmlReturn_t_to_string(const nvmlReturn_t nvmlReturn) {
             return "NVML_SUCCESS";
         case NVML_ERROR_UNINITIALIZED:
             return "NVML_ERROR_UNINITIALIZED";
-        case NVML_ERROR_INVALID_ARGUMENT:  // error
+        case NVML_ERROR_INVALID_ARGUMENT: // error
             return "NVML_ERROR_INVALID_ARGUMENT";
         case NVML_ERROR_NOT_SUPPORTED: // error
             return "NVML_ERROR_NOT_SUPPORTED";
@@ -204,7 +257,7 @@ static char *map_nvmlReturn_t_to_string(const nvmlReturn_t nvmlReturn) {
     }
 }
 
-static char* map_nvmlThermalController_t_to_string(const nvmlThermalController_t nvml_thermal_controller) {
+static char *map_nvmlThermalController_t_to_string(const nvmlThermalController_t nvml_thermal_controller) {
     switch (nvml_thermal_controller) {
         case NVML_THERMAL_CONTROLLER_NONE:
             return "NVML_THERMAL_CONTROLLER_NONE";
@@ -247,7 +300,7 @@ static char* map_nvmlThermalController_t_to_string(const nvmlThermalController_t
     }
 }
 
-static char* map_nvmlThermalTarget_t_to_string(const nvmlThermalTarget_t nvml_thermal_target) {
+static char *map_nvmlThermalTarget_t_to_string(const nvmlThermalTarget_t nvml_thermal_target) {
     switch (nvml_thermal_target) {
         case NVML_THERMAL_TARGET_NONE:
             return "NVML_THERMAL_TARGET_NONE";
