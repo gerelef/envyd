@@ -425,7 +425,65 @@ void nvmlDeviceGetClockOffsets_handler(const int client_fd, const json_object *j
 }
 
 void nvmlDeviceGetMaxClockInfo_handler(const int client_fd, const json_object *jobj) {
-    // TODO impl
+    json_object *uuid_field = json_object_object_get(jobj, "uuid");
+    if (uuid_field == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        return;
+    }
+
+    const char *uuid = json_object_get_string(uuid_field);
+    if (uuid == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
+        return;
+    }
+
+    json_object *clock_type_field = json_object_object_get(jobj, "clockType");
+    if (clock_type_field == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'clockType' field does not exist in $ (root) jobj");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'clockType' field does not exist in $ (root) jobj");
+        return;
+    }
+
+    const char *clock_type_s = json_object_get_string(clock_type_field);
+    if (clock_type_s == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'clockType' field does have a valid value");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'clockType' field does have a valid value");
+        return;
+    }
+
+    const nvmlClockType_t clock_type = map_nvmlClockType_t_to_enum(clock_type_s);
+    if (clock_type == NVML_CLOCK_COUNT) {
+        PRINTLN_SO("Invalid JSON schema: 'clockType' field did not evaluate to anything within the nvmlClockType_t (value %s must be a string of the enum value)", clock_type_s);
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'clockType' field did not evaluate to anything within the nvmlClockType_t (value must be a string of the enum value)");
+        return;
+    }
+
+    nvmlDevice_t device;
+    gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
+    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
+        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
+        return;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Couldn't get device handle w/ uuid %s", uuid);
+
+    unsigned int clock = 1;
+    gl_nvml_result = nvmlDeviceGetMaxClockInfo(device, clock_type, &clock);
+    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
+        PRINTLN_SO("Couldn't get max clock for device!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't get max clock for device!");
+        return;
+    }
+
+    char buff[64];
+    sprintf(
+        buff,
+        "{ \"clock\": %u }",
+        clock
+    );
+    RESPOND(client_fd, buff, map_nvmlReturn_t_to_string(gl_nvml_result), NULL);
 }
 
 void nvmlDeviceGetSupportedGraphicsClocks_handler(const int client_fd, const json_object *jobj) {
