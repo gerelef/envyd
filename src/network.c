@@ -12,6 +12,14 @@ void assign_task(const int client_fd, const char *action, const json_object *job
 // handlers
 // clocks
 void nvmlDeviceGetAdaptiveClockInfoStatus_handler(const int client_fd, const json_object *jobj);
+void nvmlDeviceGetClock_handler(const int client_fd, const json_object *jobj);
+void nvmlDeviceGetClockInfo_handler(const int client_fd, const json_object *jobj);
+void nvmlDeviceGetClockOffsets_handler(const int client_fd, const json_object *jobj);
+void nvmlDeviceGetMaxClockInfo_handler(const int client_fd, const json_object *jobj);
+void nvmlDeviceGetSupportedGraphicsClocks_handler(const int client_fd, const json_object *jobj);
+void nvmlDeviceGetSupportedMemoryClocks_handler(const int client_fd, const json_object *jobj);
+void nvmlDeviceSetClockOffsets_handler(const int client_fd, const json_object *jobj);
+void nvmlDeviceSetMemoryLockedClocks_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceResetApplicationsClocks_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceResetGpuLockedClocks_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceResetMemoryLockedClocks_handler(const int client_fd, const json_object *jobj);
@@ -114,6 +122,30 @@ void assign_task(const int client_fd, const char *action, const json_object *job
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1gf615cda86fd569ce30a25d441b0f5c3a
         PRINTLN_SO("nvmlDeviceGetAdaptiveClockInfoStatus_handler");
         nvmlDeviceGetAdaptiveClockInfoStatus_handler(client_fd, jobj);
+    } else if (strcmp(action, "nvmlDeviceGetClock") == 0) {
+        PRINTLN_SO("nvmlDeviceGetClock_handler");
+        nvmlDeviceGetClock_handler(client_fd, jobj);
+    } else if (strcmp(action, "nvmlDeviceGetClockInfo") == 0) {
+        PRINTLN_SO("nvmlDeviceGetClockInfo_handler");
+        nvmlDeviceGetClockInfo_handler(client_fd, jobj);
+    } else if (strcmp(action, "nvmlDeviceGetClockOffsets") == 0) {
+        PRINTLN_SO("nvmlDeviceGetClockOffsets");
+        nvmlDeviceGetClockOffsets_handler(client_fd, jobj);
+    } else if (strcmp(action, "nvmlDeviceGetMaxClockInfo") == 0) {
+        PRINTLN_SO("nvmlDeviceGetMaxClockInfo_handler");
+        nvmlDeviceGetMaxClockInfo_handler(client_fd, jobj);
+    } else if (strcmp(action, "nvmlDeviceGetSupportedGraphicsClocks") == 0) {
+        PRINTLN_SO("nvmlDeviceGetSupportedGraphicsClocks_handler");
+        nvmlDeviceGetSupportedGraphicsClocks_handler(client_fd, jobj);
+    } else if (strcmp(action, "nvmlDeviceGetSupportedMemoryClocks") == 0) {
+        PRINTLN_SO("nvmlDeviceGetSupportedMemoryClocks_handler");
+        nvmlDeviceGetSupportedMemoryClocks_handler(client_fd, jobj);
+    } else if (strcmp(action, "nvmlDeviceSetClockOffsets") == 0) {
+        PRINTLN_SO("nvmlDeviceSetClockOffsets_handler");
+        nvmlDeviceSetClockOffsets_handler(client_fd, jobj);
+    } else if (strcmp(action, "nvmlDeviceSetMemoryLockedClocks") == 0) {
+        PRINTLN_SO("nvmlDeviceSetMemoryLockedClocks_handler");
+        nvmlDeviceSetMemoryLockedClocks_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceResetApplicationsClocks") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceCommands.html#group__nvmlDeviceCommands_1gbe6c0458851b3db68fa9d1717b32acd1
         PRINTLN_SO("nvmlDeviceResetApplicationsClocks_handler");
@@ -241,6 +273,117 @@ void nvmlDeviceGetAdaptiveClockInfoStatus_handler(const int client_fd, const jso
     char buffer[64];
     sprintf(buffer, "{ \"adaptiveClockStatus\": %s }", statusb);
     RESPOND(client_fd, buffer, map_nvmlReturn_t_to_string(gl_nvml_result), NULL);
+}
+
+void nvmlDeviceGetClock_handler(const int client_fd, const json_object *jobj) {
+    json_object *uuid_field = json_object_object_get(jobj, "uuid");
+    if (uuid_field == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        return;
+    }
+
+    const char *uuid = json_object_get_string(uuid_field);
+    if (uuid == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
+        return;
+    }
+
+    json_object *clock_type_field = json_object_object_get(jobj, "clockType");
+    if (clock_type_field == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'clockType' field does not exist in $ (root) jobj");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'clockType' field does not exist in $ (root) jobj");
+        return;
+    }
+
+    const char *clock_type_s = json_object_get_string(clock_type_field);
+    if (clock_type_s == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'clockType' field does have a valid value");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'clockType' field does have a valid value");
+        return;
+    }
+
+    const nvmlClockType_t clock_type = map_nvmlClockType_t_to_enum(clock_type_s);
+    if (clock_type == NVML_CLOCK_COUNT) {
+        PRINTLN_SO("Invalid JSON schema: 'clockType' field did not evaluate to anything within the nvmlClockType_t (value %s must be a string of the enum value)", clock_type_s);
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'clockType' field did not evaluate to anything within the nvmlClockType_t (value must be a string of the enum value)");
+        return;
+    }
+
+    json_object *clock_id_field = json_object_object_get(jobj, "clockId");
+    if (clock_id_field == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'clockId' field does not exist in $ (root) jobj");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'clockId' field does not exist in $ (root) jobj");
+        return;
+    }
+
+    const char *clock_id_s = json_object_get_string(clock_id_field);
+    if (clock_id_s == NULL) {
+        PRINTLN_SO("Invalid JSON schema: 'clockId' field does have a valid value");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'clockId' field does have a valid value");
+        return;
+    }
+
+    const nvmlClockId_t clock_id = map_nvmlClockId_t_to_enum(clock_id_s);
+    if (clock_id == NVML_CLOCK_ID_COUNT) {
+        PRINTLN_SO("Invalid JSON schema: 'clockId' field did not evaluate to anything within the nvmlClockId_t (value must be a string of the enum value)");
+        RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'clockId' field did not evaluate to anything within the nvmlClockId_t (value must be a string of the enum value)");
+        return;
+    }
+
+    nvmlDevice_t device;
+    gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
+    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
+        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
+        return;
+    }
+    if (FATAL(gl_nvml_result)) WTF("Couldn't get device handle w/ uuid %s", uuid);
+
+    unsigned int clock_mhz = 1;
+    gl_nvml_result = nvmlDeviceGetClock(device, clock_type, clock_id, &clock_mhz);
+    if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
+        PRINTLN_SO("Couldn't get clock for device!");
+        RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't get clock for device!");
+        return;
+    }
+
+    char buff[64];
+    sprintf(
+        buff,
+        "{ \"clockMHz\": %u }",
+        clock_mhz
+    );
+    RESPOND(client_fd, buff, map_nvmlReturn_t_to_string(gl_nvml_result), NULL);
+}
+
+void nvmlDeviceGetClockInfo_handler(const int client_fd, const json_object *jobj) {
+    // TODO impl
+}
+
+void nvmlDeviceGetClockOffsets_handler(const int client_fd, const json_object *jobj) {
+    // TODO impl
+}
+
+void nvmlDeviceGetMaxClockInfo_handler(const int client_fd, const json_object *jobj) {
+    // TODO impl
+}
+
+void nvmlDeviceGetSupportedGraphicsClocks_handler(const int client_fd, const json_object *jobj) {
+    // TODO impl
+}
+
+void nvmlDeviceGetSupportedMemoryClocks_handler(const int client_fd, const json_object *jobj) {
+    // TODO impl
+}
+
+void nvmlDeviceSetClockOffsets_handler(const int client_fd, const json_object *jobj) {
+    // TODO impl
+}
+
+void nvmlDeviceSetMemoryLockedClocks_handler(const int client_fd, const json_object *jobj) {
+    // TODO impl
 }
 
 void nvmlDeviceResetApplicationsClocks_handler(const int client_fd, const json_object *jobj) {

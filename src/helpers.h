@@ -64,6 +64,38 @@ static nvmlRestrictedAPI_t map_nvmlRestrictedAPI_t_to_enum(const char* restricte
     return NVML_RESTRICTED_API_COUNT;
 }
 
+static nvmlClockId_t map_nvmlClockId_t_to_enum(const char* clock_id_s) {
+    if (strcmp("NVML_CLOCK_ID_CURRENT", clock_id_s) == 0) {
+        return NVML_CLOCK_ID_CURRENT;
+    }
+    if (strcmp("NVML_CLOCK_ID_APP_CLOCK_TARGET", clock_id_s) == 0) {
+        return NVML_CLOCK_ID_APP_CLOCK_TARGET;
+    }
+    if (strcmp("NVML_CLOCK_ID_APP_CLOCK_DEFAULT", clock_id_s) == 0) {
+        return NVML_CLOCK_ID_APP_CLOCK_DEFAULT;
+    }
+    if (strcmp("NVML_CLOCK_ID_CUSTOMER_BOOST_MAX", clock_id_s) == 0) {
+        return NVML_CLOCK_ID_CUSTOMER_BOOST_MAX;
+    }
+    return NVML_CLOCK_ID_COUNT;
+}
+
+static nvmlClockType_t map_nvmlClockType_t_to_enum(const char* clock_type_s) {
+    if (strcmp("NVML_CLOCK_GRAPHICS", clock_type_s) == 0) {
+        return NVML_CLOCK_GRAPHICS;
+    }
+    if (strcmp("NVML_CLOCK_SM", clock_type_s) == 0) {
+        return NVML_CLOCK_SM;
+    }
+    if (strcmp("NVML_CLOCK_MEM", clock_type_s) == 0) {
+        return NVML_CLOCK_MEM;
+    }
+    if (strcmp("NVML_CLOCK_VIDEO", clock_type_s) == 0) {
+        return NVML_CLOCK_VIDEO;
+    }
+    return NVML_CLOCK_COUNT;
+}
+
 static nvmlPowerScopeType_t map_nvmlPowerScopeType_t_to_enum(const char* power_scope) {
     if (strcmp("NVML_POWER_SCOPE_GPU", power_scope) == 0) {
         return NVML_POWER_SCOPE_GPU;
