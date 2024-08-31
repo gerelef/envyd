@@ -17,6 +17,7 @@
 
 #define JSON_PARSING_FAILED "JSON_PARSING_FAILED"
 #define INVALID_JSON_SCHEMA "INVALID_JSON_SCHEMA"
+#define AUTHORIZATION_FAILED "AUTHORIZATION_FAILED"
 #define UNDEFINED_INVALID_ACTION "UNDEFINED_INVALID_ACTION"
 
 typedef struct networkError_st {
@@ -47,6 +48,29 @@ typedef struct networkResponse_st {
     if (written < 0) PRINTLN_SO("Couldn't write to fd %d", client_fd); \
     free(send_buffer); \
     } while (0)
+
+#ifdef INSECURE
+#define AUTHORIZE(api, jobj) do {} while(0)  // no-op
+#else
+#define AUTHORIZE(api, jobj) do { \
+        json_object *bearer_field = json_object_object_get(jobj, "bearer"); \
+        if (bearer_field == NULL) { \
+            PRINTLN_SO("Invalid JSON schema: 'bearer' field does not exist in $ (root) jobj"); \
+            RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'bearer' field does not exist in $ (root) jobj"); \
+            return; \
+        } \
+        \
+        const char *bearer = json_object_get_string(bearer_field); \
+        if (bearer == NULL) { \
+            PRINTLN_SO("Invalid JSON schema: 'bearer' field does have a valid value"); \
+            RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'bearer' field does have a valid value"); \
+            return; \
+        } \
+        if (is_authorized(bearer)) break; \
+        PRINTLN_SO(AUTHORIZATION_FAILED, api); \
+        RESPOND(client_fd, NULL, AUTHORIZATION_FAILED, AUTHORIZATION_FAILED); \
+    } while (0)
+#endif
 
 typedef struct networkRequest_st {
     // TODO in the future add bearer field

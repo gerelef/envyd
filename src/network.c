@@ -1,10 +1,11 @@
 #include "network.h"
 #include "helpers.h"
+#include <nvdialog.h>
 #include <errno.h>
 #include <limits.h>
 
 extern nvmlReturn_t gl_nvml_result; // global; use for panics
-extern char *so_buffer; // global; use for socket io
+extern char *so_buffer;             // global; use for socket io
 
 ssize_t sso_read(const int socket_fd, char *buffer /*out*/, const size_t size);
 void assign_task(const int client_fd, const char *action, const json_object *jobj);
@@ -45,6 +46,35 @@ void nvmlDeviceSetTemperatureThreshold_handler(const int client_fd, const json_o
 // generic
 void nvmlDeviceGetMemoryInfo_handler(const int client_fd, const json_object *jobj);
 void nvmlDeviceGetDetailsAll_handler(const int client_fd, const json_object *jobj);
+
+/**
+ * @return 0 on authorized, != 0 on non-authorized
+ */
+int is_authorized(const char* token) {
+    WTF("Not implemented!");  // TODO implement
+}
+
+/**
+ * @return NVD_REPLY_CANCEL in case of errors, NVD_REPLY_YES or NVD_REPLY_NO for user choices.
+ */
+NvdReply authorize(const char* api, const char* token) {
+    const size_t buff_size = 8192;
+    char* buff = calloc(sizeof(char), buff_size);
+    snprintf(buff, buff_size, "Client is asking for access to %s.\n Authorize with token %s?", api, token);
+    const NvdQuestionButton question_button = NVD_YES_NO;
+    NvdQuestionBox* dialog = nvd_dialog_question_new(
+        "Authorization",
+        buff,
+        question_button
+    );
+    if (!dialog) return NVD_REPLY_CANCEL;
+
+    const NvdReply reply = nvd_get_reply(dialog);
+    nvd_free_object(dialog);
+    free(buff);
+    // cascade options to YES, NO; CANCEL is reserved for error handling
+    return reply == NVD_REPLY_OK ? NVD_REPLY_OK : NVD_REPLY_NO;
+}
 
 int bind_socket_with_address(const char *address) {
     assert(address != NULL); // sanity
@@ -140,21 +170,26 @@ void assign_task(const int client_fd, const char *action, const json_object *job
         nvmlDeviceGetSupportedMemoryClocks_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceSetClockOffsets") == 0) {
         PRINTLN_SO("nvmlDeviceSetClockOffsets_handler");
+        AUTHORIZE("setting clock offsets", jobj);
         nvmlDeviceSetClockOffsets_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceSetMemoryLockedClocks") == 0) {
         PRINTLN_SO("nvmlDeviceSetMemoryLockedClocks_handler");
+        AUTHORIZE("setting memory locked clocks", jobj);
         nvmlDeviceSetMemoryLockedClocks_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceResetApplicationsClocks") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceCommands.html#group__nvmlDeviceCommands_1gbe6c0458851b3db68fa9d1717b32acd1
         PRINTLN_SO("nvmlDeviceResetApplicationsClocks_handler");
+        AUTHORIZE("resetting application clocks", jobj);
         nvmlDeviceResetApplicationsClocks_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceResetGpuLockedClocks") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceCommands.html#group__nvmlDeviceCommands_1g51a3ca282a33471fe50c19751a99ead2
         PRINTLN_SO("nvmlDeviceResetGpuLockedClocks_handler");
+        AUTHORIZE("resetting gpu locked clocks", jobj);
         nvmlDeviceResetGpuLockedClocks_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceResetMemoryLockedClocks") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceCommands.html#group__nvmlDeviceCommands_1gc131dbdbebe753f63b254e0ec76f7154
         PRINTLN_SO("nvmlDeviceResetMemoryLockedClocks_handler");
+        AUTHORIZE("resetting memory locked clocks", jobj);
         nvmlDeviceResetMemoryLockedClocks_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetPowerManagementDefaultLimit") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1gd3ffb56cd39d079013dbfaba941eb31b
@@ -175,6 +210,7 @@ void assign_task(const int client_fd, const char *action, const json_object *job
     } else if (strcmp(action, "nvmlDeviceSetPowerManagementLimit") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1gd10040f340986af6cda91e71629edb2b
         PRINTLN_SO("nvmlDeviceSetPowerManagementLimit_handler");
+        AUTHORIZE("setting power management limit", jobj);
         nvmlDeviceSetPowerManagementLimit_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetNumFans") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g49dfc28b9d0c68f487f9321becbcad3e
@@ -195,6 +231,7 @@ void assign_task(const int client_fd, const char *action, const json_object *job
     } else if (strcmp(action, "nvmlDeviceSetAPIRestriction") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g49dfc28b9d0c68f487f9321becbcad3e
         PRINTLN_SO("nvmlDeviceSetAPIRestriction_handler");
+        AUTHORIZE("setting api restrictions", jobj);
         nvmlDeviceSetAPIRestriction_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetAPIRestriction") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g49dfc28b9d0c68f487f9321becbcad3e
@@ -220,6 +257,7 @@ void assign_task(const int client_fd, const char *action, const json_object *job
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceCommands.html#group__nvmlDeviceCommands_1g0258912fc175951b8efe1440ca59e200
         PRINTLN_SO("nvmlDeviceSetTemperatureThreshold_handler");
         // FIXME this needs to be checked; I couldn't set it even with sudo rights (failed w/ INVALID_ARGUMENT)
+        AUTHORIZE("setting temperature threshold", jobj);
         nvmlDeviceSetTemperatureThreshold_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetMemoryInfo") == 0){
         PRINTLN_SO("nvmlDeviceGetMemoryInfo_handler");
@@ -794,7 +832,6 @@ void nvmlDeviceResetMemoryLockedClocks_handler(const int client_fd, const json_o
 
     RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Successfully reset memory clocks!");
 }
-
 
 // ----------------------------- POWER -----------------------------
 
