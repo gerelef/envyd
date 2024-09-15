@@ -54,6 +54,7 @@ void nvmlDeviceGetDetailsAll_handler(const int client_fd, const json_object *job
  */
 int is_authorized(const char* token) {
     WTF("Not implemented!");  // TODO implement
+    exit(1);
 }
 
 /**
@@ -102,31 +103,32 @@ void process(const int client_fd, const struct timeval *tv_timeout) {
     // the lifecycle of this object is that this will live until the program closes, whereupon everything
     //  will be freed by the OS (hopefully, lol)
     if (so_buffer == NULL) so_buffer = malloc(SO_INPUT_BUFFER_SIZE);
-    MEMSET_BUFF(so_buffer, SO_INPUT_BUFFER_SIZE);
+    memset(so_buffer, 0, SO_INPUT_BUFFER_SIZE);
 
     if (setsockopt(client_fd, SOL_SOCKET, SO_RCVTIMEO, tv_timeout, sizeof(struct timeval)) < 0) {
-        PRINTLN_SO("Failed to set socket timeout! Returning early...");
+        LOG_ERROR("Failed to set socket timeout! Returning early...");
         return;
     }
 
     const ssize_t bytes_received = sso_read(client_fd, so_buffer, SO_INPUT_BUFFER_SIZE - 1);
     if (bytes_received < 0) {
-        PRINTLN_SO("Failed to read from socket! Returning early...");
+        LOG_ERROR("Failed to read from socket! Returning early...");
         return;
     }
 
-    PRINTLN_SO("Received %zd bytes: %s\n", bytes_received, so_buffer);
+    rstrip(so_buffer);
+    LOG_TRACE("Received body %s", so_buffer);
     enum json_tokener_error error;
     json_object *jobj = json_tokener_parse_verbose(so_buffer, &error);
     if (jobj == NULL) {
-        PRINTLN_SO("Failed to parse JSON object w/ json-c w/ err %d ! Writing to client_fd out, and returning early...",error);
+        LOG_ERROR("Failed to parse JSON object w/ json-c w/ err %d ! Writing to client_fd out, and returning early...",error);
         RESPOND(client_fd, NULL, JSON_PARSING_FAILED, "Failed parsing of JSON, view daemon logs for error code...");
         return;
     }
 
     json_object *action_field = json_object_object_get(jobj, "action");
     if (action_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'action' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'action' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA,
                  "Invalid JSON schema: 'action' field does not exist in $ (root) jobj");
         if (json_object_put(jobj) != 0) WTF("Couldn't free jobj!");
@@ -135,7 +137,7 @@ void process(const int client_fd, const struct timeval *tv_timeout) {
 
     const char *action = json_object_get_string(action_field);
     if (action == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'action' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'action' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'action' field does have a valid value");
         if (json_object_put(jobj) != 0) WTF("Couldn't free jobj!");
         return;
@@ -147,109 +149,109 @@ void process(const int client_fd, const struct timeval *tv_timeout) {
 
 void assign_task(const int client_fd, const char *action, const json_object *jobj) {
     assert(jobj != NULL); // sanity
-    PRINTLN_SO("Got action '%s', length %lu", action, strlen(action));
+    LOG_TRACE("Got action '%s', length %lu", action, strlen(action));
     if (strcmp(action, "nvmlDeviceGetAdaptiveClockInfoStatus") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1gf615cda86fd569ce30a25d441b0f5c3a
-        PRINTLN_SO("nvmlDeviceGetAdaptiveClockInfoStatus_handler");
+        LOG_TRACE("nvmlDeviceGetAdaptiveClockInfoStatus_handler");
         nvmlDeviceGetAdaptiveClockInfoStatus_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetClock") == 0) {
-        PRINTLN_SO("nvmlDeviceGetClock_handler");
+        LOG_TRACE("nvmlDeviceGetClock_handler");
         nvmlDeviceGetClock_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetClockInfo") == 0) {
-        PRINTLN_SO("nvmlDeviceGetClockInfo_handler");
+        LOG_TRACE("nvmlDeviceGetClockInfo_handler");
         nvmlDeviceGetClockInfo_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetClockOffsets") == 0) {
-        PRINTLN_SO("nvmlDeviceGetClockOffsets");
+        LOG_TRACE("nvmlDeviceGetClockOffsets");
         nvmlDeviceGetClockOffsets_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetMaxClockInfo") == 0) {
-        PRINTLN_SO("nvmlDeviceGetMaxClockInfo_handler");
+        LOG_TRACE("nvmlDeviceGetMaxClockInfo_handler");
         nvmlDeviceGetMaxClockInfo_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetSupportedGraphicsClocks") == 0) {
-        PRINTLN_SO("nvmlDeviceGetSupportedGraphicsClocks_handler");
+        LOG_TRACE("nvmlDeviceGetSupportedGraphicsClocks_handler");
         nvmlDeviceGetSupportedGraphicsClocks_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetSupportedMemoryClocks") == 0) {
-        PRINTLN_SO("nvmlDeviceGetSupportedMemoryClocks_handler");
+        LOG_TRACE("nvmlDeviceGetSupportedMemoryClocks_handler");
         nvmlDeviceGetSupportedMemoryClocks_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceSetClockOffsets") == 0) {
-        PRINTLN_SO("nvmlDeviceSetClockOffsets_handler");
+        LOG_TRACE("nvmlDeviceSetClockOffsets_handler");
         CHECK_AUTHORIZATION("setting clock offsets", jobj);
         nvmlDeviceSetClockOffsets_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceSetMemoryLockedClocks") == 0) {
-        PRINTLN_SO("nvmlDeviceSetMemoryLockedClocks_handler");
+        LOG_TRACE("nvmlDeviceSetMemoryLockedClocks_handler");
         CHECK_AUTHORIZATION("setting memory locked clocks", jobj);
         nvmlDeviceSetMemoryLockedClocks_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceSetApplicationsClocks") == 0) {
-        PRINTLN_SO("nvmlDeviceSetApplicationsClocks_handler");
+        LOG_TRACE("nvmlDeviceSetApplicationsClocks_handler");
         CHECK_AUTHORIZATION("setting application locked clocks", jobj);
         nvmlDeviceSetApplicationsClocks_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceSetGpuLockedClocks") == 0) {
-        PRINTLN_SO("nvmlDeviceSetMemoryLockedClocks_handler");
+        LOG_TRACE("nvmlDeviceSetMemoryLockedClocks_handler");
         CHECK_AUTHORIZATION("setting gpu locked clocks", jobj);
         nvmlDeviceSetGpuLockedClocks_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceResetApplicationsClocks") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceCommands.html#group__nvmlDeviceCommands_1gbe6c0458851b3db68fa9d1717b32acd1
-        PRINTLN_SO("nvmlDeviceResetApplicationsClocks_handler");
+        LOG_TRACE("nvmlDeviceResetApplicationsClocks_handler");
         CHECK_AUTHORIZATION("resetting application clocks", jobj);
         nvmlDeviceResetApplicationsClocks_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceResetGpuLockedClocks") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceCommands.html#group__nvmlDeviceCommands_1g51a3ca282a33471fe50c19751a99ead2
-        PRINTLN_SO("nvmlDeviceResetGpuLockedClocks_handler");
+        LOG_TRACE("nvmlDeviceResetGpuLockedClocks_handler");
         CHECK_AUTHORIZATION("resetting gpu locked clocks", jobj);
         nvmlDeviceResetGpuLockedClocks_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceResetMemoryLockedClocks") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceCommands.html#group__nvmlDeviceCommands_1gc131dbdbebe753f63b254e0ec76f7154
-        PRINTLN_SO("nvmlDeviceResetMemoryLockedClocks_handler");
+        LOG_TRACE("nvmlDeviceResetMemoryLockedClocks_handler");
         CHECK_AUTHORIZATION("resetting memory locked clocks", jobj);
         nvmlDeviceResetMemoryLockedClocks_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetPowerManagementDefaultLimit") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1gd3ffb56cd39d079013dbfaba941eb31b
-        PRINTLN_SO("nvmlDeviceGetPowerManagementDefaultLimit_handler");
+        LOG_TRACE("nvmlDeviceGetPowerManagementDefaultLimit_handler");
         nvmlDeviceGetPowerManagementDefaultLimit_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetPowerManagementLimit") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1gf754f109beca3a4a8c8c1cd650d7d66c
-        PRINTLN_SO("nvmlDeviceGetPowerManagementLimit_handler");
+        LOG_TRACE("nvmlDeviceGetPowerManagementLimit_handler");
         nvmlDeviceGetPowerManagementLimit_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetPowerManagementLimitConstraints") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g350d841176116e366284df0e5e2fe2bf
-        PRINTLN_SO("nvmlDeviceGetPowerManagementLimitConstraints_handler");
+        LOG_TRACE("nvmlDeviceGetPowerManagementLimitConstraints_handler");
         nvmlDeviceGetPowerManagementLimitConstraints_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetPowerUsage") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g7ef7dff0ff14238d08a19ad7fb23fc87
-        PRINTLN_SO("nvmlDeviceGetPowerUsage_handler");
+        LOG_TRACE("nvmlDeviceGetPowerUsage_handler");
         nvmlDeviceGetPowerUsage_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceSetPowerManagementLimit") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1gd10040f340986af6cda91e71629edb2b
-        PRINTLN_SO("nvmlDeviceSetPowerManagementLimit_handler");
+        LOG_TRACE("nvmlDeviceSetPowerManagementLimit_handler");
         CHECK_AUTHORIZATION("setting power management limit", jobj);
         nvmlDeviceSetPowerManagementLimit_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetNumFans") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g49dfc28b9d0c68f487f9321becbcad3e
-        PRINTLN_SO("nvmlDeviceGetNumFans_handler");
+        LOG_TRACE("nvmlDeviceGetNumFans_handler");
         nvmlDeviceGetNumFans_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetFanSpeed") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g49dfc28b9d0c68f487f9321becbcad3e
-        PRINTLN_SO("nvmlDeviceGetFanSpeed_handler");
+        LOG_TRACE("nvmlDeviceGetFanSpeed_handler");
         nvmlDeviceGetFanSpeed_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetMinMaxFanSpeed") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g6922296589fef4898133a1ec30ec7cf5
-        PRINTLN_SO("nvmlDeviceGetMinMaxFanSpeed_handler");
+        LOG_TRACE("nvmlDeviceGetMinMaxFanSpeed_handler");
         nvmlDeviceGetMinMaxFanSpeed_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetTargetFanSpeed") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g821108f7d34dc47811a2a29ad76f7969
-        PRINTLN_SO("nvmlDeviceGetTargetFanSpeed_handler");
+        LOG_TRACE("nvmlDeviceGetTargetFanSpeed_handler");
         nvmlDeviceGetTargetFanSpeed_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceSetAPIRestriction") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g49dfc28b9d0c68f487f9321becbcad3e
-        PRINTLN_SO("nvmlDeviceSetAPIRestriction_handler");
+        LOG_TRACE("nvmlDeviceSetAPIRestriction_handler");
         CHECK_AUTHORIZATION("setting api restrictions", jobj);
         nvmlDeviceSetAPIRestriction_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetAPIRestriction") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g49dfc28b9d0c68f487f9321becbcad3e
-        PRINTLN_SO("nvmlDeviceGetAPIRestriction_handler");
+        LOG_TRACE("nvmlDeviceGetAPIRestriction_handler");
         nvmlDeviceGetAPIRestriction_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetTemperature") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g92d1c5182a14dd4be7090e3c1480b121
-        PRINTLN_SO("nvmlDeviceGetTemperature_handler");
+        LOG_TRACE("nvmlDeviceGetTemperature_handler");
         nvmlDeviceGetTemperature_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetTemperatureThreshold") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1g271ba78911494f33fc079b204a929405
@@ -257,27 +259,27 @@ void assign_task(const int client_fd, const char *action, const json_object *job
         //  Support for reading these temperature thresholds for
         //  Ada and later architectures would be removed from this API in future releases.Please
         //  use nvmlDeviceGetFieldValues with NVML_FI_DEV_TEMPERATURE_* fields to retrieve temperature thresholds on these architectures
-        PRINTLN_SO("nvmlDeviceGetTemperatureThreshold_handler");
+        LOG_TRACE("nvmlDeviceGetTemperatureThreshold_handler");
         nvmlDeviceGetTemperatureThreshold_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetThermalSettings") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceQueries.html#group__nvmlDeviceQueries_1gf0c51f78525ea6fbc1a83bd75db098c7
-        PRINTLN_SO("nvmlDeviceGetThermalSettings_handler");
+        LOG_TRACE("nvmlDeviceGetThermalSettings_handler");
         nvmlDeviceGetThermalSettings_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceSetTemperatureThreshold") == 0) {
         // https://docs.nvidia.com/deploy/nvml-api/group__nvmlDeviceCommands.html#group__nvmlDeviceCommands_1g0258912fc175951b8efe1440ca59e200
-        PRINTLN_SO("nvmlDeviceSetTemperatureThreshold_handler");
+        LOG_TRACE("nvmlDeviceSetTemperatureThreshold_handler");
         // FIXME this needs to be checked; I couldn't set it even with sudo rights (failed w/ INVALID_ARGUMENT)
         CHECK_AUTHORIZATION("setting temperature threshold", jobj);
         nvmlDeviceSetTemperatureThreshold_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetMemoryInfo") == 0){
-        PRINTLN_SO("nvmlDeviceGetMemoryInfo_handler");
+        LOG_TRACE("nvmlDeviceGetMemoryInfo_handler");
         nvmlDeviceGetMemoryInfo_handler(client_fd, jobj);
     } else if (strcmp(action, "nvmlDeviceGetDetailsAll") == 0) {
         // custom 'action'; this will get all the important details required
-        PRINTLN_SO("nvmlDeviceGetDetailsAll_handler");
+        LOG_TRACE("nvmlDeviceGetDetailsAll_handler");
         nvmlDeviceGetDetailsAll_handler(client_fd, jobj);
     } else {
-        PRINTLN_SO("Got erroneous action %s, couldn't resolve provided action to any valid action!", action);
+        LOG_TRACE("Got erroneous action %s, couldn't resolve provided action to any valid action!", action);
         RESPOND(client_fd, NULL, UNDEFINED_INVALID_ACTION, "Couldn't resolve provided action to any valid envyd or NVML action.");
     }
 }
@@ -287,14 +289,14 @@ void assign_task(const int client_fd, const char *action, const json_object *job
 void nvmlDeviceGetAdaptiveClockInfoStatus_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *uuid = json_object_get_string(uuid_field);
     if (uuid == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
         return;
     }
@@ -302,7 +304,7 @@ void nvmlDeviceGetAdaptiveClockInfoStatus_handler(const int client_fd, const jso
     nvmlDevice_t device;
     gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        LOG_ERROR("Couldn't resolve UUID to any device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
         return;
     }
@@ -311,7 +313,7 @@ void nvmlDeviceGetAdaptiveClockInfoStatus_handler(const int client_fd, const jso
     unsigned int status;
     gl_nvml_result = nvmlDeviceGetAdaptiveClockInfoStatus(device, &status);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve get adaptive clock info status for device!");
+        LOG_ERROR("Couldn't resolve get adaptive clock info status for device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't reset adaptive clock info status for device!");
         return;
     }
@@ -325,56 +327,56 @@ void nvmlDeviceGetAdaptiveClockInfoStatus_handler(const int client_fd, const jso
 void nvmlDeviceGetClock_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *uuid = json_object_get_string(uuid_field);
     if (uuid == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
         return;
     }
 
     json_object *clock_type_field = json_object_object_get(jobj, "clockType");
     if (clock_type_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'clockType' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'clockType' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'clockType' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *clock_type_s = json_object_get_string(clock_type_field);
     if (clock_type_s == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'clockType' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'clockType' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'clockType' field does have a valid value");
         return;
     }
 
     const nvmlClockType_t clock_type = map_nvmlClockType_t_to_enum(clock_type_s);
     if (clock_type == NVML_CLOCK_COUNT) {
-        PRINTLN_SO("Invalid JSON schema: 'clockType' field did not evaluate to anything within the nvmlClockType_t (value %s must be a string of the enum value)", clock_type_s);
+        LOG_ERROR("Invalid JSON schema: 'clockType' field did not evaluate to anything within the nvmlClockType_t (value %s must be a string of the enum value)", clock_type_s);
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'clockType' field did not evaluate to anything within the nvmlClockType_t (value must be a string of the enum value)");
         return;
     }
 
     json_object *clock_id_field = json_object_object_get(jobj, "clockId");
     if (clock_id_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'clockId' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'clockId' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'clockId' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *clock_id_s = json_object_get_string(clock_id_field);
     if (clock_id_s == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'clockId' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'clockId' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'clockId' field does have a valid value");
         return;
     }
 
     const nvmlClockId_t clock_id = map_nvmlClockId_t_to_enum(clock_id_s);
     if (clock_id == NVML_CLOCK_ID_COUNT) {
-        PRINTLN_SO("Invalid JSON schema: 'clockId' field did not evaluate to anything within the nvmlClockId_t (value must be a string of the enum value)");
+        LOG_ERROR("Invalid JSON schema: 'clockId' field did not evaluate to anything within the nvmlClockId_t (value must be a string of the enum value)");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'clockId' field did not evaluate to anything within the nvmlClockId_t (value must be a string of the enum value)");
         return;
     }
@@ -382,7 +384,7 @@ void nvmlDeviceGetClock_handler(const int client_fd, const json_object *jobj) {
     nvmlDevice_t device;
     gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        LOG_ERROR("Couldn't resolve UUID to any device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
         return;
     }
@@ -391,7 +393,7 @@ void nvmlDeviceGetClock_handler(const int client_fd, const json_object *jobj) {
     unsigned int clock_mhz = 1;
     gl_nvml_result = nvmlDeviceGetClock(device, clock_type, clock_id, &clock_mhz);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't get clock for device!");
+        LOG_ERROR("Couldn't get clock for device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't get clock for device!");
         return;
     }
@@ -408,35 +410,35 @@ void nvmlDeviceGetClock_handler(const int client_fd, const json_object *jobj) {
 void nvmlDeviceGetClockInfo_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *uuid = json_object_get_string(uuid_field);
     if (uuid == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
         return;
     }
 
     json_object *clock_type_field = json_object_object_get(jobj, "clockType");
     if (clock_type_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'clockType' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'clockType' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'clockType' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *clock_type_s = json_object_get_string(clock_type_field);
     if (clock_type_s == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'clockType' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'clockType' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'clockType' field does have a valid value");
         return;
     }
 
     const nvmlClockType_t clock_type = map_nvmlClockType_t_to_enum(clock_type_s);
     if (clock_type == NVML_CLOCK_COUNT) {
-        PRINTLN_SO("Invalid JSON schema: 'clockType' field did not evaluate to anything within the nvmlClockType_t (value %s must be a string of the enum value)", clock_type_s);
+        LOG_ERROR("Invalid JSON schema: 'clockType' field did not evaluate to anything within the nvmlClockType_t (value %s must be a string of the enum value)", clock_type_s);
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'clockType' field did not evaluate to anything within the nvmlClockType_t (value must be a string of the enum value)");
         return;
     }
@@ -444,7 +446,7 @@ void nvmlDeviceGetClockInfo_handler(const int client_fd, const json_object *jobj
     nvmlDevice_t device;
     gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        LOG_ERROR("Couldn't resolve UUID to any device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
         return;
     }
@@ -453,7 +455,7 @@ void nvmlDeviceGetClockInfo_handler(const int client_fd, const json_object *jobj
     unsigned int clock = 1;
     gl_nvml_result = nvmlDeviceGetClockInfo(device, clock_type, &clock);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't get clock for device!");
+        LOG_ERROR("Couldn't get clock for device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't get clock for device!");
         return;
     }
@@ -470,56 +472,56 @@ void nvmlDeviceGetClockInfo_handler(const int client_fd, const json_object *jobj
 void nvmlDeviceGetClockOffsets_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *uuid = json_object_get_string(uuid_field);
     if (uuid == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
         return;
     }
 
     json_object *clock_type_field = json_object_object_get(jobj, "clockType");
     if (clock_type_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'clockType' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'clockType' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'clockType' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *clock_type_s = json_object_get_string(clock_type_field);
     if (clock_type_s == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'clockType' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'clockType' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'clockType' field does have a valid value");
         return;
     }
 
     const nvmlClockType_t clock_type = map_nvmlClockType_t_to_enum(clock_type_s);
     if (clock_type == NVML_CLOCK_COUNT) {
-        PRINTLN_SO("Invalid JSON schema: 'clockType' field did not evaluate to anything within the nvmlClockType_t (value %s must be a string of the enum value)", clock_type_s);
+        LOG_ERROR("Invalid JSON schema: 'clockType' field did not evaluate to anything within the nvmlClockType_t (value %s must be a string of the enum value)", clock_type_s);
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'clockType' field did not evaluate to anything within the nvmlClockType_t (value must be a string of the enum value)");
         return;
     }
 
     json_object *pstate_type_field = json_object_object_get(jobj, "pstate");
     if (pstate_type_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'pstate' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'pstate' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'pstate' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *pstate_s = json_object_get_string(pstate_type_field);
     if (pstate_s == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'pstate' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'pstate' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'pstate' field does have a valid value");
         return;
     }
 
     const nvmlPstates_t pstate = map_nvmlClockType_t_to_enum(pstate_s);
     if (pstate == NVML_PSTATE_UNKNOWN) {
-        PRINTLN_SO("Invalid JSON schema: 'pstate' field did not evaluate to anything within the nvmlPstates_t (value %s must be a string of the enum value)", pstate_s);
+        LOG_ERROR("Invalid JSON schema: 'pstate' field did not evaluate to anything within the nvmlPstates_t (value %s must be a string of the enum value)", pstate_s);
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'pstate' field did not evaluate to anything within the nvmlClockType_t (value must be a string of the enum value)");
         return;
     }
@@ -529,7 +531,7 @@ void nvmlDeviceGetClockOffsets_handler(const int client_fd, const json_object *j
     nvmlDevice_t device;
     gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        LOG_ERROR("Couldn't resolve UUID to any device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
         return;
     }
@@ -541,7 +543,7 @@ void nvmlDeviceGetClockOffsets_handler(const int client_fd, const json_object *j
     info.pstate = pstate;
     gl_nvml_result = nvmlDeviceGetClockOffsets(device, &info);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve get offsets for device %s", uuid);
+        LOG_ERROR("Couldn't resolve get offsets for device %s", uuid);
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve get offsets for device!");
         return;
     }
@@ -560,35 +562,35 @@ void nvmlDeviceGetClockOffsets_handler(const int client_fd, const json_object *j
 void nvmlDeviceGetMaxClockInfo_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *uuid = json_object_get_string(uuid_field);
     if (uuid == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
         return;
     }
 
     json_object *clock_type_field = json_object_object_get(jobj, "clockType");
     if (clock_type_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'clockType' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'clockType' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'clockType' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *clock_type_s = json_object_get_string(clock_type_field);
     if (clock_type_s == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'clockType' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'clockType' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'clockType' field does have a valid value");
         return;
     }
 
     const nvmlClockType_t clock_type = map_nvmlClockType_t_to_enum(clock_type_s);
     if (clock_type == NVML_CLOCK_COUNT) {
-        PRINTLN_SO("Invalid JSON schema: 'clockType' field did not evaluate to anything within the nvmlClockType_t (value %s must be a string of the enum value)", clock_type_s);
+        LOG_ERROR("Invalid JSON schema: 'clockType' field did not evaluate to anything within the nvmlClockType_t (value %s must be a string of the enum value)", clock_type_s);
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'clockType' field did not evaluate to anything within the nvmlClockType_t (value must be a string of the enum value)");
         return;
     }
@@ -596,7 +598,7 @@ void nvmlDeviceGetMaxClockInfo_handler(const int client_fd, const json_object *j
     nvmlDevice_t device;
     gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        LOG_ERROR("Couldn't resolve UUID to any device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
         return;
     }
@@ -605,7 +607,7 @@ void nvmlDeviceGetMaxClockInfo_handler(const int client_fd, const json_object *j
     unsigned int clock = 1;
     gl_nvml_result = nvmlDeviceGetMaxClockInfo(device, clock_type, &clock);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't get max clock for device!");
+        LOG_ERROR("Couldn't get max clock for device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't get max clock for device!");
         return;
     }
@@ -622,34 +624,34 @@ void nvmlDeviceGetMaxClockInfo_handler(const int client_fd, const json_object *j
 void nvmlDeviceGetSupportedGraphicsClocks_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *uuid = json_object_get_string(uuid_field);
     if (uuid == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
         return;
     }
 
     const json_object *memory_clock_field = json_object_object_get(jobj, "memoryClockMHZ");
     if (memory_clock_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'memoryClockMHZ' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'memoryClockMHZ' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'memoryClockMHZ' field does not exist in $ (root) jobj");
         return;
     }
 
     if (!json_object_is_type(memory_clock_field, json_type_int)) {
-        PRINTLN_SO("Invalid JSON schema: 'memoryClockMHZ' field is not an int");
+        LOG_ERROR("Invalid JSON schema: 'memoryClockMHZ' field is not an int");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'memoryClockMHZ' field is not an int");
         return;
     }
 
     const int memoryClockMHZ = json_object_get_int(memory_clock_field);
     if (memoryClockMHZ < 0) {
-        PRINTLN_SO("Invalid JSON schema: 'memoryClockMHZ' field is not >= 0");
+        LOG_ERROR("Invalid JSON schema: 'memoryClockMHZ' field is not >= 0");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'memoryClockMHZ' field is not >= 0");
         return;
     }
@@ -657,7 +659,7 @@ void nvmlDeviceGetSupportedGraphicsClocks_handler(const int client_fd, const jso
     nvmlDevice_t device;
     gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        LOG_ERROR("Couldn't resolve UUID to any device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
         return;
     }
@@ -668,7 +670,7 @@ void nvmlDeviceGetSupportedGraphicsClocks_handler(const int client_fd, const jso
     gl_nvml_result = nvmlDeviceGetSupportedGraphicsClocks(device, memoryClockMHZ, &count, clocksMHZ);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
         free(clocksMHZ);
-        PRINTLN_SO("Couldn't resolve get supported graphics clocks for device w/ count %u!", count);
+        LOG_ERROR("Couldn't resolve get supported graphics clocks for device w/ count %u!", count);
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve get supported graphics clocks for device!");
         return;
     }
@@ -689,14 +691,14 @@ void nvmlDeviceGetSupportedGraphicsClocks_handler(const int client_fd, const jso
 void nvmlDeviceGetSupportedMemoryClocks_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *uuid = json_object_get_string(uuid_field);
     if (uuid == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
         return;
     }
@@ -704,7 +706,7 @@ void nvmlDeviceGetSupportedMemoryClocks_handler(const int client_fd, const json_
     nvmlDevice_t device;
     gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        LOG_ERROR("Couldn't resolve UUID to any device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
         return;
     }
@@ -715,7 +717,7 @@ void nvmlDeviceGetSupportedMemoryClocks_handler(const int client_fd, const json_
     gl_nvml_result = nvmlDeviceGetSupportedMemoryClocks(device, &count, clocksMHZ);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
         free(clocksMHZ);
-        PRINTLN_SO("Couldn't resolve get supported memory clocks for device w/ count %u!", count);
+        LOG_ERROR("Couldn't resolve get supported memory clocks for device w/ count %u!", count);
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve get supported memory clocks for device!");
         return;
     }
@@ -756,14 +758,14 @@ void nvmlDeviceSetGpuLockedClocks_handler(const int client_fd, const json_object
 void nvmlDeviceResetApplicationsClocks_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *uuid = json_object_get_string(uuid_field);
     if (uuid == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
         return;
     }
@@ -771,7 +773,7 @@ void nvmlDeviceResetApplicationsClocks_handler(const int client_fd, const json_o
     nvmlDevice_t device;
     gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        LOG_ERROR("Couldn't resolve UUID to any device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
         return;
     }
@@ -779,7 +781,7 @@ void nvmlDeviceResetApplicationsClocks_handler(const int client_fd, const json_o
 
     gl_nvml_result = nvmlDeviceResetApplicationsClocks(device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve reset applications clocks to device!");
+        LOG_ERROR("Couldn't resolve reset applications clocks to device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't reset applications clocks to device!");
         return;
     }
@@ -790,14 +792,14 @@ void nvmlDeviceResetApplicationsClocks_handler(const int client_fd, const json_o
 void nvmlDeviceResetGpuLockedClocks_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *uuid = json_object_get_string(uuid_field);
     if (uuid == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
         return;
     }
@@ -805,7 +807,7 @@ void nvmlDeviceResetGpuLockedClocks_handler(const int client_fd, const json_obje
     nvmlDevice_t device;
     gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        LOG_ERROR("Couldn't resolve UUID to any device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
         return;
     }
@@ -813,7 +815,7 @@ void nvmlDeviceResetGpuLockedClocks_handler(const int client_fd, const json_obje
 
     gl_nvml_result = nvmlDeviceResetGpuLockedClocks(device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve reset gpu clocks to device!");
+        LOG_ERROR("Couldn't resolve reset gpu clocks to device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't reset gpu clocks to device!");
         return;
     }
@@ -824,14 +826,14 @@ void nvmlDeviceResetGpuLockedClocks_handler(const int client_fd, const json_obje
 void nvmlDeviceResetMemoryLockedClocks_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *uuid = json_object_get_string(uuid_field);
     if (uuid == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
         return;
     }
@@ -839,7 +841,7 @@ void nvmlDeviceResetMemoryLockedClocks_handler(const int client_fd, const json_o
     nvmlDevice_t device;
     gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        LOG_ERROR("Couldn't resolve UUID to any device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
         return;
     }
@@ -847,7 +849,7 @@ void nvmlDeviceResetMemoryLockedClocks_handler(const int client_fd, const json_o
 
     gl_nvml_result = nvmlDeviceResetMemoryLockedClocks(device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve reset memory clocks to device!");
+        LOG_ERROR("Couldn't resolve reset memory clocks to device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't reset memory clocks to device!");
         return;
     }
@@ -860,14 +862,14 @@ void nvmlDeviceResetMemoryLockedClocks_handler(const int client_fd, const json_o
 void nvmlDeviceGetPowerManagementDefaultLimit_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *uuid = json_object_get_string(uuid_field);
     if (uuid == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
         return;
     }
@@ -875,7 +877,7 @@ void nvmlDeviceGetPowerManagementDefaultLimit_handler(const int client_fd, const
     nvmlDevice_t device;
     gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        LOG_ERROR("Couldn't resolve UUID to any device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
         return;
     }
@@ -884,7 +886,7 @@ void nvmlDeviceGetPowerManagementDefaultLimit_handler(const int client_fd, const
     unsigned int default_limit;
     gl_nvml_result = nvmlDeviceGetPowerManagementDefaultLimit(device, &default_limit);
     if (ERROR(gl_nvml_result)) {
-        PRINTLN_SO("Couldn't get default limit!");
+        LOG_ERROR("Couldn't get default limit!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't get default limit!");
         return;
     }
@@ -897,14 +899,14 @@ void nvmlDeviceGetPowerManagementDefaultLimit_handler(const int client_fd, const
 void nvmlDeviceGetPowerManagementLimit_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *uuid = json_object_get_string(uuid_field);
     if (uuid == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
         return;
     }
@@ -912,7 +914,7 @@ void nvmlDeviceGetPowerManagementLimit_handler(const int client_fd, const json_o
     nvmlDevice_t device;
     gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        LOG_ERROR("Couldn't resolve UUID to any device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
         return;
     }
@@ -921,7 +923,7 @@ void nvmlDeviceGetPowerManagementLimit_handler(const int client_fd, const json_o
     unsigned int limit;
     gl_nvml_result = nvmlDeviceGetPowerManagementLimit(device, &limit);
     if (ERROR(gl_nvml_result)) {
-        PRINTLN_SO("Couldn't get limit!");
+        LOG_ERROR("Couldn't get limit!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't get limit!");
         return;
     }
@@ -934,14 +936,14 @@ void nvmlDeviceGetPowerManagementLimit_handler(const int client_fd, const json_o
 void nvmlDeviceGetPowerManagementLimitConstraints_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *uuid = json_object_get_string(uuid_field);
     if (uuid == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
         return;
     }
@@ -949,7 +951,7 @@ void nvmlDeviceGetPowerManagementLimitConstraints_handler(const int client_fd, c
     nvmlDevice_t device;
     gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        LOG_ERROR("Couldn't resolve UUID to any device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
         return;
     }
@@ -959,7 +961,7 @@ void nvmlDeviceGetPowerManagementLimitConstraints_handler(const int client_fd, c
     unsigned int max_limit;
     gl_nvml_result = nvmlDeviceGetPowerManagementLimitConstraints(device, &min_limit, &max_limit);
     if (ERROR(gl_nvml_result)) {
-        PRINTLN_SO("Couldn't get fan min/max limit!");
+        LOG_ERROR("Couldn't get fan min/max limit!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't get fan min/max limit");
         return;
     }
@@ -972,14 +974,14 @@ void nvmlDeviceGetPowerManagementLimitConstraints_handler(const int client_fd, c
 void nvmlDeviceGetPowerUsage_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *uuid = json_object_get_string(uuid_field);
     if (uuid == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
         return;
     }
@@ -987,7 +989,7 @@ void nvmlDeviceGetPowerUsage_handler(const int client_fd, const json_object *job
     nvmlDevice_t device;
     gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        LOG_ERROR("Couldn't resolve UUID to any device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
         return;
     }
@@ -996,7 +998,7 @@ void nvmlDeviceGetPowerUsage_handler(const int client_fd, const json_object *job
     unsigned int power;
     gl_nvml_result = nvmlDeviceGetPowerUsage(device, &power);
     if (ERROR(gl_nvml_result)) {
-        PRINTLN_SO("Couldn't get power usage!");
+        LOG_ERROR("Couldn't get power usage!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't get power usage!");
         return;
     }
@@ -1009,55 +1011,55 @@ void nvmlDeviceGetPowerUsage_handler(const int client_fd, const json_object *job
 void nvmlDeviceSetPowerManagementLimit_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *uuid = json_object_get_string(uuid_field);
     if (uuid == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
         return;
     }
 
     json_object *scope_field = json_object_object_get(jobj, "powerScope");
     if (scope_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'powerScope' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'powerScope' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'powerScope' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *scope = json_object_get_string(scope_field);
     if (scope == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'powerScope' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'powerScope' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'powerScope' field does have a valid value");
         return;
     }
 
     const nvmlPowerScopeType_t scope_type = map_nvmlPowerScopeType_t_to_enum(scope);
     if (scope_type == CHAR_MAX) {
-        PRINTLN_SO("Invalid JSON schema: 'powerScope' field did not evaluate to anything within the nvmlPowerScopeType_t (value must be NVML_POWER_SCOPE_GPU or NVML_POWER_SCOPE_MODULE or NVML_POWER_SCOPE_MEMORY)");
+        LOG_ERROR("Invalid JSON schema: 'powerScope' field did not evaluate to anything within the nvmlPowerScopeType_t (value must be NVML_POWER_SCOPE_GPU or NVML_POWER_SCOPE_MODULE or NVML_POWER_SCOPE_MEMORY)");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'powerScope' field did not evaluate to anything within the nvmlPowerScopeType_t (value must be NVML_POWER_SCOPE_GPU or NVML_POWER_SCOPE_MODULE or NVML_POWER_SCOPE_MEMORY)");
         return;
     }
 
     const json_object *power_value_field = json_object_object_get(jobj, "powerValueMw");
     if (power_value_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'powerValueMw' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'powerValueMw' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'powerValueMw' field does not exist in $ (root) jobj");
         return;
     }
 
     if (!json_object_is_type(power_value_field, json_type_int)) {
-        PRINTLN_SO("Invalid JSON schema: 'powerValueMw' field is not an int");
+        LOG_ERROR("Invalid JSON schema: 'powerValueMw' field is not an int");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'powerValueMw' field is not an int");
         return;
     }
 
     const int power_value = json_object_get_int(power_value_field);
     if (power_value < 0) {
-        PRINTLN_SO("Invalid JSON schema: 'powerValueMw' field is not >= 0");
+        LOG_ERROR("Invalid JSON schema: 'powerValueMw' field is not >= 0");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'powerValueMw' field is not >= 0");
         return;
     }
@@ -1065,7 +1067,7 @@ void nvmlDeviceSetPowerManagementLimit_handler(const int client_fd, const json_o
     nvmlDevice_t device;
     gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        LOG_ERROR("Couldn't resolve UUID to any device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
         return;
     }
@@ -1078,7 +1080,7 @@ void nvmlDeviceSetPowerManagementLimit_handler(const int client_fd, const json_o
     power_value_s.powerValueMw = power_value;
     gl_nvml_result = nvmlDeviceSetPowerManagementLimit_v2(device, &power_value_s);
     if (ERROR(gl_nvml_result)) {
-        PRINTLN_SO("Couldn't set power management limit w/ uuid %s and version %u, type %d, mw %u", uuid, power_value_s.version, power_value_s.powerScope, power_value_s.powerValueMw);
+        LOG_ERROR("Couldn't set power management limit w/ uuid %s and version %u, type %d, mw %u", uuid, power_value_s.version, power_value_s.powerScope, power_value_s.powerValueMw);
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't set power management limit");
         return;
     }
@@ -1092,14 +1094,14 @@ void nvmlDeviceSetPowerManagementLimit_handler(const int client_fd, const json_o
 void nvmlDeviceGetNumFans_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *uuid = json_object_get_string(uuid_field);
     if (uuid == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
         return;
     }
@@ -1107,7 +1109,7 @@ void nvmlDeviceGetNumFans_handler(const int client_fd, const json_object *jobj) 
     nvmlDevice_t device;
     gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        LOG_ERROR("Couldn't resolve UUID to any device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
         return;
     }
@@ -1116,7 +1118,7 @@ void nvmlDeviceGetNumFans_handler(const int client_fd, const json_object *jobj) 
     unsigned int num_fans;
     gl_nvml_result = nvmlDeviceGetNumFans(device, &num_fans);
     if (ERROR(gl_nvml_result)) {
-        PRINTLN_SO("Couldn't get count of fans!");
+        LOG_ERROR("Couldn't get count of fans!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't get count of fans");
         return;
     }
@@ -1129,34 +1131,34 @@ void nvmlDeviceGetNumFans_handler(const int client_fd, const json_object *jobj) 
 void nvmlDeviceGetFanSpeed_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *uuid = json_object_get_string(uuid_field);
     if (uuid == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
         return;
     }
 
     const json_object *fan_field = json_object_object_get(jobj, "fan");
     if (fan_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'fan' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'fan' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'fan' field does not exist in $ (root) jobj");
         return;
     }
 
     if (!json_object_is_type(fan_field, json_type_int)) {
-        PRINTLN_SO("Invalid JSON schema: 'fan' field is not an int");
+        LOG_ERROR("Invalid JSON schema: 'fan' field is not an int");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'fan' field is not an int");
         return;
     }
 
     const int fan_index = json_object_get_int(fan_field);
     if (fan_index < 0) {
-        PRINTLN_SO("Invalid JSON schema: 'fan' field is not >= 0");
+        LOG_ERROR("Invalid JSON schema: 'fan' field is not >= 0");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'fan' field is not >= 0");
         return;
     }
@@ -1164,7 +1166,7 @@ void nvmlDeviceGetFanSpeed_handler(const int client_fd, const json_object *jobj)
     nvmlDevice_t device;
     gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        LOG_ERROR("Couldn't resolve UUID to any device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
         return;
     }
@@ -1173,7 +1175,7 @@ void nvmlDeviceGetFanSpeed_handler(const int client_fd, const json_object *jobj)
     unsigned int num_speed;
     gl_nvml_result = nvmlDeviceGetFanSpeed_v2(device, fan_index, &num_speed);
     if (ERROR(gl_nvml_result)) {
-        PRINTLN_SO("Couldn't get fan speed!");
+        LOG_ERROR("Couldn't get fan speed!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't get fan speed");
         return;
     }
@@ -1186,14 +1188,14 @@ void nvmlDeviceGetFanSpeed_handler(const int client_fd, const json_object *jobj)
 void nvmlDeviceGetMinMaxFanSpeed_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *uuid = json_object_get_string(uuid_field);
     if (uuid == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
         return;
     }
@@ -1201,7 +1203,7 @@ void nvmlDeviceGetMinMaxFanSpeed_handler(const int client_fd, const json_object 
     nvmlDevice_t device;
     gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        LOG_ERROR("Couldn't resolve UUID to any device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
         return;
     }
@@ -1211,7 +1213,7 @@ void nvmlDeviceGetMinMaxFanSpeed_handler(const int client_fd, const json_object 
     unsigned int max_speed;
     gl_nvml_result = nvmlDeviceGetMinMaxFanSpeed(device, &min_speed, &max_speed);
     if (ERROR(gl_nvml_result)) {
-        PRINTLN_SO("Couldn't get fan min/max speed!");
+        LOG_ERROR("Couldn't get fan min/max speed!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't get fan min/max speed");
         return;
     }
@@ -1224,34 +1226,34 @@ void nvmlDeviceGetMinMaxFanSpeed_handler(const int client_fd, const json_object 
 void nvmlDeviceGetTargetFanSpeed_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *uuid = json_object_get_string(uuid_field);
     if (uuid == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
         return;
     }
 
     const json_object *fan_field = json_object_object_get(jobj, "fan");
     if (fan_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'fan' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'fan' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'fan' field does not exist in $ (root) jobj");
         return;
     }
 
     if (!json_object_is_type(fan_field, json_type_int)) {
-        PRINTLN_SO("Invalid JSON schema: 'fan' field is not an int");
+        LOG_ERROR("Invalid JSON schema: 'fan' field is not an int");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'fan' field is not an int");
         return;
     }
 
     const int fan_index = json_object_get_int(fan_field);
     if (fan_index < 0) {
-        PRINTLN_SO("Invalid JSON schema: 'fan' field is not >= 0");
+        LOG_ERROR("Invalid JSON schema: 'fan' field is not >= 0");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'fan' field is not >= 0");
         return;
     }
@@ -1259,7 +1261,7 @@ void nvmlDeviceGetTargetFanSpeed_handler(const int client_fd, const json_object 
     nvmlDevice_t device;
     gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        LOG_ERROR("Couldn't resolve UUID to any device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
         return;
     }
@@ -1268,7 +1270,7 @@ void nvmlDeviceGetTargetFanSpeed_handler(const int client_fd, const json_object 
     unsigned int num_speed;
     gl_nvml_result = nvmlDeviceGetTargetFanSpeed(device, fan_index, &num_speed);
     if (ERROR(gl_nvml_result)) {
-        PRINTLN_SO("Couldn't get fan speed!");
+        LOG_ERROR("Couldn't get fan speed!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't get fan speed");
         return;
     }
@@ -1283,48 +1285,48 @@ void nvmlDeviceGetTargetFanSpeed_handler(const int client_fd, const json_object 
 void nvmlDeviceSetAPIRestriction_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *uuid = json_object_get_string(uuid_field);
     if (uuid == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
         return;
     }
 
     json_object *type_field = json_object_object_get(jobj, "apiType");
     if (type_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'apiType' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'apiType' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'apiType' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *type = json_object_get_string(type_field);
     if (type == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'apiType' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'apiType' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'apiType' field does have a valid value");
         return;
     }
 
     const nvmlRestrictedAPI_t api_type = map_nvmlRestrictedAPI_t_to_enum(type);
     if (api_type == NVML_RESTRICTED_API_COUNT) {
-        PRINTLN_SO("Invalid JSON schema: 'apiType' field did not evaluate to anything within the nvmlRestrictedAPI_t enum");
+        LOG_ERROR("Invalid JSON schema: 'apiType' field did not evaluate to anything within the nvmlRestrictedAPI_t enum");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'apiType' field did not evaluate to anything within the nvmlRestrictedAPI_t enum");
         return;
     }
 
     const json_object *isRestricted_field = json_object_object_get(jobj, "isRestricted");
     if (isRestricted_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'isRestricted' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'isRestricted' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'isRestricted' field does not exist in $ (root) jobj");
         return;
     }
 
     if (!json_object_is_type(isRestricted_field, json_type_boolean)) {
-        PRINTLN_SO("Invalid JSON schema: 'isRestricted' field is not a boolean");
+        LOG_ERROR("Invalid JSON schema: 'isRestricted' field is not a boolean");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'isRestricted' field is not a boolean");
         return;
     }
@@ -1334,7 +1336,7 @@ void nvmlDeviceSetAPIRestriction_handler(const int client_fd, const json_object 
     nvmlDevice_t device;
     gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        LOG_ERROR("Couldn't resolve UUID to any device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
         return;
     }
@@ -1343,7 +1345,7 @@ void nvmlDeviceSetAPIRestriction_handler(const int client_fd, const json_object 
     const nvmlEnableState_t nvmlRestricted = is_restricted == 1;
     gl_nvml_result = nvmlDeviceSetAPIRestriction(device, api_type, nvmlRestricted);
     if (ERROR(gl_nvml_result)) {
-        PRINTLN_SO("Couldn't set API restriction!");
+        LOG_ERROR("Couldn't set API restriction!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't set API restriction");
         return;
     }
@@ -1355,35 +1357,35 @@ void nvmlDeviceSetAPIRestriction_handler(const int client_fd, const json_object 
 void nvmlDeviceGetAPIRestriction_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *uuid = json_object_get_string(uuid_field);
     if (uuid == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
         return;
     }
 
     json_object *type_field = json_object_object_get(jobj, "apiType");
     if (type_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'apiType' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'apiType' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'apiType' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *type = json_object_get_string(type_field);
     if (type == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'apiType' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'apiType' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'apiType' field does have a valid value");
         return;
     }
 
     const nvmlRestrictedAPI_t api_type = map_nvmlRestrictedAPI_t_to_enum(type);
     if (api_type == NVML_RESTRICTED_API_COUNT) {
-        PRINTLN_SO("Invalid JSON schema: 'apiType' field did not evaluate to anything within the nvmlRestrictedAPI_t enum");
+        LOG_ERROR("Invalid JSON schema: 'apiType' field did not evaluate to anything within the nvmlRestrictedAPI_t enum");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'apiType' field did not evaluate to anything within the nvmlRestrictedAPI_t enum");
         return;
     }
@@ -1391,7 +1393,7 @@ void nvmlDeviceGetAPIRestriction_handler(const int client_fd, const json_object 
     nvmlDevice_t device;
     gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        LOG_ERROR("Couldn't resolve UUID to any device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
         return;
     }
@@ -1400,7 +1402,7 @@ void nvmlDeviceGetAPIRestriction_handler(const int client_fd, const json_object 
     nvmlEnableState_t is_restricted;
     gl_nvml_result = nvmlDeviceGetAPIRestriction(device, api_type, &is_restricted);
     if (ERROR(gl_nvml_result)) {
-        PRINTLN_SO("Couldn't resolve API restriction!");
+        LOG_ERROR("Couldn't resolve API restriction!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve API restriction");
         return;
     }
@@ -1416,14 +1418,14 @@ void nvmlDeviceGetAPIRestriction_handler(const int client_fd, const json_object 
 void nvmlDeviceGetTemperature_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *uuid = json_object_get_string(uuid_field);
     if (uuid == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
         return;
     }
@@ -1431,7 +1433,7 @@ void nvmlDeviceGetTemperature_handler(const int client_fd, const json_object *jo
     nvmlDevice_t device;
     gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        LOG_ERROR("Couldn't resolve UUID to any device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
         return;
     }
@@ -1440,7 +1442,7 @@ void nvmlDeviceGetTemperature_handler(const int client_fd, const json_object *jo
     unsigned int temperature;
     gl_nvml_result = nvmlDeviceGetTemperature(device, NVML_TEMPERATURE_GPU, &temperature);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_UNKNOWN) {
-        PRINTLN_SO("Couldn't get temperature!");
+        LOG_ERROR("Couldn't get temperature!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't get temperature");
         return;
     }
@@ -1454,14 +1456,14 @@ void nvmlDeviceGetTemperature_handler(const int client_fd, const json_object *jo
 void nvmlDeviceGetTemperatureThreshold_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *uuid = json_object_get_string(uuid_field);
     if (uuid == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
         return;
     }
@@ -1469,7 +1471,7 @@ void nvmlDeviceGetTemperatureThreshold_handler(const int client_fd, const json_o
     nvmlDevice_t device;
     gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        LOG_ERROR("Couldn't resolve UUID to any device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
         return;
     }
@@ -1479,7 +1481,7 @@ void nvmlDeviceGetTemperatureThreshold_handler(const int client_fd, const json_o
     nvmlReturn_t lo_nvml_result = gl_nvml_result;
     gl_nvml_result = nvmlDeviceGetTemperatureThreshold(device, NVML_TEMPERATURE_THRESHOLD_SHUTDOWN, &shutdown);
     if (ERROR(gl_nvml_result)) {
-        PRINTLN_SO("Couldn't resolve temperature threshold info to device!");
+        LOG_ERROR("Couldn't resolve temperature threshold info to device!");
         gl_nvml_result == NVML_ERROR_NOT_SUPPORTED ? shutdown = UINT_MAX : 0; // noop
         lo_nvml_result = gl_nvml_result;
     }
@@ -1488,7 +1490,7 @@ void nvmlDeviceGetTemperatureThreshold_handler(const int client_fd, const json_o
     unsigned int slowdown;
     gl_nvml_result = nvmlDeviceGetTemperatureThreshold(device, NVML_TEMPERATURE_THRESHOLD_SLOWDOWN, &slowdown);
     if (ERROR(gl_nvml_result)) {
-        PRINTLN_SO("Couldn't resolve temperature threshold info to device!");
+        LOG_ERROR("Couldn't resolve temperature threshold info to device!");
         gl_nvml_result == NVML_ERROR_NOT_SUPPORTED ? slowdown = UINT_MAX : 0; // noop
         lo_nvml_result = gl_nvml_result;
     }
@@ -1497,7 +1499,7 @@ void nvmlDeviceGetTemperatureThreshold_handler(const int client_fd, const json_o
     unsigned int mem_max;
     gl_nvml_result = nvmlDeviceGetTemperatureThreshold(device, NVML_TEMPERATURE_THRESHOLD_MEM_MAX, &mem_max);
     if (ERROR(gl_nvml_result)) {
-        PRINTLN_SO("Couldn't resolve temperature threshold info to device!");
+        LOG_ERROR("Couldn't resolve temperature threshold info to device!");
         gl_nvml_result == NVML_ERROR_NOT_SUPPORTED ? mem_max = UINT_MAX : 0; // noop
         lo_nvml_result = gl_nvml_result;
     }
@@ -1506,7 +1508,7 @@ void nvmlDeviceGetTemperatureThreshold_handler(const int client_fd, const json_o
     unsigned int gpu_max;
     gl_nvml_result = nvmlDeviceGetTemperatureThreshold(device, NVML_TEMPERATURE_THRESHOLD_GPU_MAX, &gpu_max);
     if (ERROR(gl_nvml_result)) {
-        PRINTLN_SO("Couldn't resolve temperature threshold info to device!");
+        LOG_ERROR("Couldn't resolve temperature threshold info to device!");
         gl_nvml_result == NVML_ERROR_NOT_SUPPORTED ? gpu_max = UINT_MAX : 0; // noop
         lo_nvml_result = gl_nvml_result;
     }
@@ -1515,7 +1517,7 @@ void nvmlDeviceGetTemperatureThreshold_handler(const int client_fd, const json_o
     unsigned int acoustic_min;
     gl_nvml_result = nvmlDeviceGetTemperatureThreshold(device, NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_MIN, &acoustic_min);
     if (ERROR(gl_nvml_result)) {
-        PRINTLN_SO("Couldn't resolve temperature threshold info to device!");
+        LOG_ERROR("Couldn't resolve temperature threshold info to device!");
         gl_nvml_result == NVML_ERROR_NOT_SUPPORTED ? acoustic_min = UINT_MAX : 0; // noop
         lo_nvml_result = gl_nvml_result;
     }
@@ -1524,7 +1526,7 @@ void nvmlDeviceGetTemperatureThreshold_handler(const int client_fd, const json_o
     unsigned int acoustic_curr;
     gl_nvml_result = nvmlDeviceGetTemperatureThreshold(device, NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_CURR, &acoustic_curr);
     if (ERROR(gl_nvml_result)) {
-        PRINTLN_SO("Couldn't resolve temperature threshold info to device!");
+        LOG_ERROR("Couldn't resolve temperature threshold info to device!");
         gl_nvml_result == NVML_ERROR_NOT_SUPPORTED ? acoustic_curr = UINT_MAX : 0;
         lo_nvml_result = gl_nvml_result;
     }
@@ -1533,7 +1535,7 @@ void nvmlDeviceGetTemperatureThreshold_handler(const int client_fd, const json_o
     unsigned int acoustic_max;
     gl_nvml_result = nvmlDeviceGetTemperatureThreshold(device, NVML_TEMPERATURE_THRESHOLD_ACOUSTIC_MAX, &acoustic_max);
     if (ERROR(gl_nvml_result)) {
-        PRINTLN_SO("Couldn't resolve temperature threshold info to device!");
+        LOG_ERROR("Couldn't resolve temperature threshold info to device!");
         gl_nvml_result == NVML_ERROR_NOT_SUPPORTED ? acoustic_max = UINT_MAX : 0; // noop
         lo_nvml_result = gl_nvml_result;
     }
@@ -1542,7 +1544,7 @@ void nvmlDeviceGetTemperatureThreshold_handler(const int client_fd, const json_o
     unsigned int gps_curr;
     gl_nvml_result = nvmlDeviceGetTemperatureThreshold(device, NVML_TEMPERATURE_THRESHOLD_GPS_CURR, &gps_curr);
     if (ERROR(gl_nvml_result)) {
-        PRINTLN_SO("Couldn't resolve temperature threshold info to device!");
+        LOG_ERROR("Couldn't resolve temperature threshold info to device!");
         gl_nvml_result == NVML_ERROR_NOT_SUPPORTED ? gps_curr = UINT_MAX : 0; // noop
         lo_nvml_result = gl_nvml_result;
     }
@@ -1577,14 +1579,14 @@ void nvmlDeviceGetTemperatureThreshold_handler(const int client_fd, const json_o
 void nvmlDeviceGetThermalSettings_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *uuid = json_object_get_string(uuid_field);
     if (uuid == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
         return;
     }
@@ -1592,7 +1594,7 @@ void nvmlDeviceGetThermalSettings_handler(const int client_fd, const json_object
     nvmlDevice_t device;
     gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        LOG_ERROR("Couldn't resolve UUID to any device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
         return;
     }
@@ -1601,7 +1603,7 @@ void nvmlDeviceGetThermalSettings_handler(const int client_fd, const json_object
     nvmlGpuThermalSettings_t gpu_thermal_settings = {0};
     gl_nvml_result = nvmlDeviceGetThermalSettings(device, NVML_TEMPERATURE_GPU, &gpu_thermal_settings);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_UNKNOWN) {
-        PRINTLN_SO("Couldn't match sensor!");
+        LOG_ERROR("Couldn't match sensor!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't match sensor");
         return;
     }
@@ -1637,55 +1639,55 @@ void nvmlDeviceGetThermalSettings_handler(const int client_fd, const json_object
 void nvmlDeviceSetTemperatureThreshold_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *uuid = json_object_get_string(uuid_field);
     if (uuid == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
         return;
     }
 
     json_object *threshold_type_field = json_object_object_get(jobj, "thresholdType");
     if (threshold_type_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'thresholdType' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'thresholdType' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'thresholdType' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *threshold_type = json_object_get_string(threshold_type_field);
     if (threshold_type == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'thresholdType' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'thresholdType' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'thresholdType' field does have a valid value");
         return;
     }
 
     const nvmlTemperatureThresholds_t threshold_type_t = map_nvmlTemperatureThresholds_t_to_enum(threshold_type);
     if (threshold_type_t == NVML_TEMPERATURE_THRESHOLD_COUNT) {
-        PRINTLN_SO("Invalid JSON schema: 'thresholdType' field does have a valid value (is not in nvmlTemperatureThresholds_t enum)");
+        LOG_ERROR("Invalid JSON schema: 'thresholdType' field does have a valid value (is not in nvmlTemperatureThresholds_t enum)");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'thresholdType' field does have a valid value (is not in nvmlTemperatureThresholds_t enum)");
         return;
     }
 
     const json_object *temp_field = json_object_object_get(jobj, "temp");
     if (temp_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'temp' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'temp' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'temp' field does not exist in $ (root) jobj");
         return;
     }
 
     if (!json_object_is_type(temp_field, json_type_int)) {
-        PRINTLN_SO("Invalid JSON schema: 'temp' field is not an int");
+        LOG_ERROR("Invalid JSON schema: 'temp' field is not an int");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'temp' field is not an int");
         return;
     }
 
     int temp = json_object_get_int(temp_field);
     if (temp < 0) {
-        PRINTLN_SO("Invalid JSON schema: 'temp' field is not >= 0");
+        LOG_ERROR("Invalid JSON schema: 'temp' field is not >= 0");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'temp' field is not >= 0");
         return;
     }
@@ -1693,7 +1695,7 @@ void nvmlDeviceSetTemperatureThreshold_handler(const int client_fd, const json_o
     nvmlDevice_t device;
     gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        LOG_ERROR("Couldn't resolve UUID to any device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
         return;
     }
@@ -1701,7 +1703,7 @@ void nvmlDeviceSetTemperatureThreshold_handler(const int client_fd, const json_o
 
     gl_nvml_result = nvmlDeviceSetTemperatureThreshold(device, threshold_type_t, &temp);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't set temperature threshold for uuid %s, type %d, temp %d", uuid, threshold_type_t, temp);
+        LOG_ERROR("Couldn't set temperature threshold for uuid %s, type %d, temp %d", uuid, threshold_type_t, temp);
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't set temperature threshold! If this error is an INVALID_ARGUMENT type error, this might be a 'bug': https://forums.developer.nvidia.com/t/nvmldevicesettemperaturethreshold-api-returns-invalid-argument-error/279650/3");
         return;
     }
@@ -1715,14 +1717,14 @@ void nvmlDeviceSetTemperatureThreshold_handler(const int client_fd, const json_o
 void nvmlDeviceGetMemoryInfo_handler(const int client_fd, const json_object *jobj) {
     json_object *uuid_field = json_object_object_get(jobj, "uuid");
     if (uuid_field == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does not exist in $ (root) jobj");
         return;
     }
 
     const char *uuid = json_object_get_string(uuid_field);
     if (uuid == NULL) {
-        PRINTLN_SO("Invalid JSON schema: 'uuid' field does have a valid value");
+        LOG_ERROR("Invalid JSON schema: 'uuid' field does have a valid value");
         RESPOND(client_fd, NULL, INVALID_JSON_SCHEMA, "Invalid JSON schema: 'uuid' field does have a valid value");
         return;
     }
@@ -1730,7 +1732,7 @@ void nvmlDeviceGetMemoryInfo_handler(const int client_fd, const json_object *job
     nvmlDevice_t device;
     gl_nvml_result = nvmlDeviceGetHandleByUUID(uuid, &device);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve UUID to any device!");
+        LOG_ERROR("Couldn't resolve UUID to any device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve UUID");
         return;
     }
@@ -1740,7 +1742,7 @@ void nvmlDeviceGetMemoryInfo_handler(const int client_fd, const json_object *job
     nvml_memory.version = NVML_STRUCT_VERSION(Memory, 2);
     gl_nvml_result = nvmlDeviceGetMemoryInfo_v2(device, &nvml_memory);
     if (ERROR(gl_nvml_result) || gl_nvml_result == NVML_ERROR_NOT_FOUND) {
-        PRINTLN_SO("Couldn't resolve memory info to device!");
+        LOG_ERROR("Couldn't resolve memory info to device!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't resolve memory info to device!");
         return;
     }
@@ -1769,7 +1771,7 @@ void nvmlDeviceGetDetailsAll_handler(const int client_fd, const json_object *job
     unsigned int device_count;
     gl_nvml_result = nvmlDeviceGetCount_v2(&device_count);
     if (ERROR(gl_nvml_result)) {
-        PRINTLN_SO("Couldn't get count of devices!");
+        LOG_ERROR("Couldn't get count of devices!");
         RESPOND(client_fd, NULL, map_nvmlReturn_t_to_string(gl_nvml_result), "Couldn't get count of devices");
         return;
     }
@@ -1781,7 +1783,7 @@ void nvmlDeviceGetDetailsAll_handler(const int client_fd, const json_object *job
         nvmlDevice_t device;
         gl_nvml_result = nvmlDeviceGetHandleByIndex_v2(i, &device);
         if (ERROR(gl_nvml_result)) {
-            PRINTLN_SO("Couldn't get device by index %d!", i);
+            LOG_ERROR("Couldn't get device by index %d!", i);
             ++failure_count;
             continue;
         }
@@ -1790,7 +1792,7 @@ void nvmlDeviceGetDetailsAll_handler(const int client_fd, const json_object *job
         char uuid[128];
         gl_nvml_result = nvmlDeviceGetUUID(device, uuid, 256);
         if (ERROR(gl_nvml_result)) {
-            PRINTLN_SO("Couldn't get uuid by index %d!", i);
+            LOG_ERROR("Couldn't get uuid by index %d!", i);
             ++failure_count;
             continue;
         }
@@ -1799,7 +1801,7 @@ void nvmlDeviceGetDetailsAll_handler(const int client_fd, const json_object *job
         char name[128];
         gl_nvml_result = nvmlDeviceGetName(device, name, 256);
         if (ERROR(gl_nvml_result)) {
-            PRINTLN_SO("Couldn't get device name by index %d!", i);
+            LOG_ERROR("Couldn't get device name by index %d!", i);
             ++failure_count;
             continue;
         }
@@ -1808,7 +1810,7 @@ void nvmlDeviceGetDetailsAll_handler(const int client_fd, const json_object *job
         char gsp_version[64];
         gl_nvml_result = nvmlDeviceGetGspFirmwareVersion(device, gsp_version);
         if (ERROR(gl_nvml_result)) {
-            PRINTLN_SO("Couldn't get gsp version by index %d!", i);
+            LOG_ERROR("Couldn't get gsp version by index %d!", i);
             ++failure_count;
             continue;
         }
@@ -1818,7 +1820,7 @@ void nvmlDeviceGetDetailsAll_handler(const int client_fd, const json_object *job
         unsigned int default_mode;
         gl_nvml_result = nvmlDeviceGetGspFirmwareMode(device, &gsp_mode, &default_mode);
         if (ERROR(gl_nvml_result)) {
-            PRINTLN_SO("Couldn't get gsp mode by index %d!", i);
+            LOG_ERROR("Couldn't get gsp mode by index %d!", i);
             ++failure_count;
             continue;
         }
@@ -1872,18 +1874,18 @@ ssize_t sso_read(const int socket_fd, char *buffer /*out*/, const size_t size) {
     assert(buffer != NULL); // sanity
     ssize_t total_bytes = 0;
 
-    PRINTLN_SO("Will read from fd (%d) into buffer of size %llu", socket_fd, size);
+    LOG_TRACE("Will read from fd (%d) into buffer of size %llu", socket_fd, size);
     while (total_bytes < size) {
         const ssize_t bytes_received = read(socket_fd, buffer + total_bytes, size - total_bytes);
 
         if (bytes_received == 0) {
-            PRINTLN_SO("No more data to receive (received <= 0 len bytes), read total bytes %llu...", total_bytes);
+            LOG_TRACE("No more data to receive (received <= 0 len bytes), read total bytes %llu...", total_bytes);
             break;
         }
 
         if (bytes_received == -1) {
-            PRINTLN_SO("Error reading from socket; memsetting buffer to 0 (deleting data), and returning early w/ -1!");
-            MEMSET_BUFF(buffer, size);
+            LOG_ERROR("Error reading from socket; memsetting buffer to 0 (deleting data), and returning early w/ -1!");
+            memset(buffer, 0, size);
             total_bytes = -1;
             break;
         }

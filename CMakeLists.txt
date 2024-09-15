@@ -35,6 +35,7 @@ endif()
 add_executable(
         ${PROJECT_NAME}
         src/main.c
+        src/helpers.c
         src/helpers.h
         src/network.c
         src/network.h

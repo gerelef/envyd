@@ -44,8 +44,8 @@ typedef struct networkResponse_st {
         desc == NULL   ? "" : "\"", STRINGIFY_NULLABLE(desc), desc == NULL     ? "" : "\""  \
     ); \
     ssize_t written = write(client_fd, send_buffer, bytes_to_send); \
-    PRINTLN_SO("Writing to client_fd %d: %s", client_fd, send_buffer); \
-    if (written < 0) PRINTLN_SO("Couldn't write to fd %d", client_fd); \
+    LOG_INFO("Writing to client_fd %d: %s", client_fd, send_buffer); \
+    if (written < 0) LOG_ERROR("Couldn't write to fd %d", client_fd); \
     free(send_buffer); \
     } while (0)
 
