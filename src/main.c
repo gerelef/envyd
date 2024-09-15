@@ -28,6 +28,8 @@ void die_gracefully(const int signal_code) {
 
     gl_nvml_result = nvmlShutdown();
     if (FATAL(gl_nvml_result)) WTF("Failed to shutdown NVML");
+    if (so_buffer != NULL) free(so_buffer);
+    if (log_buffer != NULL) free(log_buffer);
     exit(EXIT_SUCCESS);
 }
 

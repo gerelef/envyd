@@ -2,7 +2,8 @@
 #define HELPERS_H
 
 #include <nvml.h>
-#include <stdlib.h>
+
+#define LOG_BUFFER_SIZE 16384
 
 typedef enum logLevel_enum: unsigned char {
     ERROR = 0b00000001,
@@ -14,7 +15,6 @@ typedef enum logLevel_enum: unsigned char {
 
 extern logLevel_t current_log_level; // global; use for logging
 extern char *log_buffer;
-#define LOG_BUFFER_SIZE 16384
 extern nvmlReturn_t gl_nvml_result; // global; use for panics
 
 #define OK(nvmlReturn) nvmlReturn == NVML_SUCCESS
